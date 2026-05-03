@@ -3,76 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BOMB TYPING</title>
+    <title>BOMB TYPING - FIXED</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <style>
-        :root { --p1-color: #4CAF50; --p2-color: #F44336; --bg: #121212; }
-        body { font-family: 'sans-serif'; background: var(--bg); margin: 0; display: flex; flex-direction: column; align-items: center; color: white; height: 100dvh; overflow: hidden; }
-        
-        /* ゲームボード本体：キーボードを考慮して上寄りに配置 */
-        #game-container { width: 100%; max-width: 400px; height: 50%; /* 画面上半分に収める */ position: relative; padding-top: 20px; }
-
-        /* タイマー：目立つように最上部へ */
-        #timer-container { width: 90%; margin: 0 auto; text-align: center; }
-        #timer-num { font-size: 48px; font-weight: 900; font-family: monospace; line-height: 1; margin-bottom: 5px; color: #FFEB3B; }
-        #timer-bar-bg { width: 100%; height: 15px; background: #333; border-radius: 10px; overflow: hidden; border: 2px solid #fff; }
+        :root { --p1: #4CAF50; --p2: #F44336; --bg: #1a1a1a; }
+        body { font-family: sans-serif; background: var(--bg); margin: 0; display: flex; flex-direction: column; align-items: center; color: white; height: 100dvh; overflow: hidden; }
+        #game-container { width: 100%; max-width: 450px; height: 50%; position: relative; margin-top: 20px; }
+        #timer-num { font-size: 50px; font-weight: 900; color: #FFEB3B; text-align: center; }
+        #timer-bar-bg { width: 90%; height: 12px; background: #333; margin: 0 auto; border-radius: 10px; border: 2px solid #fff; overflow: hidden; }
         #timer-bar { width: 100%; height: 100%; background: linear-gradient(90deg, #f44336, #ffeb3b); transition: width 0.1s linear; }
-
-        /* お題エリア：中央に大きく */
-        #display-area { width: 90%; margin: 20px auto; background: #fff; border-radius: 20px; padding: 20px 10px; text-align: center; border: 5px solid #444; box-shadow: 0 8px 0 #000; }
-        #target-word { color: #222; font-size: 42px; font-weight: 900; margin-bottom: 10px; display: block; }
-        #user-input-view { color: #E91E63; font-size: 32px; font-weight: bold; min-height: 40px; background: #eee; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
-
-        /* プレイヤー：左右に配置 */
-        .player { position: absolute; bottom: 10px; width: 70px; height: 70px; border-radius: 15px; border: 4px solid #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; transition: 0.2s; }
-        #p1 { left: 20px; background: var(--p1-color); }
-        #p2 { right: 20px; background: var(--p2-color); }
+        #display-area { width: 90%; margin: 20px auto; background: white; border-radius: 20px; padding: 25px 10px; text-align: center; border: 4px solid #333; box-shadow: 0 8px 0 #000; }
+        #target-word { color: #222; font-size: 45px; font-weight: 900; display: block; margin-bottom: 10px; }
+        #user-input-view { color: #E91E63; font-size: 30px; font-weight: bold; min-height: 40px; background: #f0f0f0; border-radius: 10px; display: flex; align-items: center; justify-content: center; border: 1px inset #ccc; }
+        .player { position: absolute; bottom: 10px; width: 80px; height: 80px; border-radius: 15px; border: 4px solid #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 20px; }
+        #p1-box { left: 20px; background: var(--p1); }
+        #p2-box { right: 20px; background: var(--p2); }
         .active-turn { transform: scale(1.2); box-shadow: 0 0 20px #fff; border-color: #FFEB3B; }
-
-        /* 爆弾：プレイヤー間を移動 */
-        #bomb { position: absolute; bottom: 20px; font-size: 50px; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 10; }
-
-        /* 非表示の入力用 */
+        #bomb { position: absolute; bottom: 20px; font-size: 55px; transition: left 0.3s ease; z-index: 10; transform: translateX(-50%); }
         #hidden-input { position: fixed; top: -100px; left: -100px; opacity: 0; }
-        
-        /* ロビー（初期画面） */
-        #lobby { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 100; display: flex; justify-content: center; align-items: center; }
-        .lobby-card { background: white; color: black; padding: 30px; border-radius: 30px; text-align: center; width: 80%; }
-        button { background: #ff5722; color: white; border: none; padding: 15px 30px; font-size: 20px; border-radius: 50px; font-weight: bold; margin-top: 15px; width: 100%; }
+        #lobby { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; display: flex; justify-content: center; align-items: center; }
+        .card { background: white; color: black; padding: 30px; border-radius: 25px; text-align: center; width: 80%; max-width: 300px; }
+        button { background: #ff5722; color: white; border: none; padding: 15px; font-size: 20px; border-radius: 50px; font-weight: bold; margin-top: 15px; width: 100%; cursor: pointer; }
     </style>
 </head>
 <body>
 
 <div id="lobby">
-    <div class="lobby-card">
-        <h2 id="room-id-txt">ROOM: --</h2>
-        <h3 id="role-txt">接続中...</h3>
-        <p id="status-txt">待機しています</p>
+    <div class="card">
+        <h2 id="room-info">ROOM: --</h2>
+        <h3 id="role-info">接続中...</h3>
+        <p id="status-info">サーバーを確認中...</p>
         <button id="start-btn" style="display:none">バトル開始！</button>
     </div>
 </div>
 
 <div id="game-container">
-    <div id="timer-container">
-        <div id="timer-num">10.0</div>
-        <div id="timer-bar-bg"><div id="timer-bar"></div></div>
-    </div>
-
+    <div id="timer-num">10.0</div>
+    <div id="timer-bar-bg"><div id="timer-bar"></div></div>
     <div id="display-area">
         <span id="target-word">---</span>
         <div id="user-input-view"></div>
     </div>
-
-    <div id="p1" class="player">P1</div>
-    <div id="p2" class="player">P2</div>
+    <div id="p1-box" class="player">P1</div>
+    <div id="p2-box" class="player">P2</div>
     <div id="bomb">💣</div>
 </div>
 
-<input type="text" id="hidden-input" autocomplete="off" autofocus>
+<input type="text" id="hidden-input" autocomplete="off">
 
 <script>
-    // Firebase設定 (以前と同じもの)
     const firebaseConfig = {
         apiKey: "AIzaSyCgQ8Pz_7PKOpD15wHegpTsHqF1SyocFl4",
         authDomain: "typing-battle-2cad7.firebaseapp.com",
@@ -91,29 +71,36 @@
 
     let myRole = null;
     let isPlaying = false;
+    const words = ["さくら", "みかん", "けーき", "すいか", "とまと", "らいおん", "めろん", "そーだ", "すまほ", "いぬ", "えび", "ねこ", "わに", "くつした"];
 
-    // フリック入力のしやすさ重視（同じ行・連続を避ける）
-    const words = ["さくら", "みかん", "けーき", "すいか", "とまと", "らいおん", "めろん", "からあげ", "そーだ", "すまほ", "いぬ", "えび", "ねこ", "わに"];
+    async function join() {
+        // 【重要】もし部屋が古ければ掃除する
+        const snap = await roomRef.child('players').get();
+        if (!snap.exists()) await roomRef.remove();
 
-    function getNext(curr) {
-        let n; do { n = words[Math.floor(Math.random() * words.length)]; } while (n === curr);
-        return n;
+        roomRef.child('players').transaction(cur => {
+            if (!cur) return { p1: true };
+            if (!cur.p1) return { ...cur, p1: true };
+            if (!cur.p2) return { ...cur, p2: true };
+            return; // 満員の場合は何もしない
+        }, (err, committed, result) => {
+            if (!committed) {
+                alert("満員です。URLの最後に ?room=2 などをつけてみてください。");
+                return;
+            }
+            // 自分がどっちか判定
+            const players = result.val();
+            myRole = (players.p2) ? 'p2' : 'p1';
+            
+            document.getElementById('room-info').innerText = "ROOM: " + roomId;
+            document.getElementById('role-info').innerText = "あなたは " + myRole.toUpperCase();
+            roomRef.child('players/' + myRole).onDisconnect().remove();
+            
+            listen();
+        });
     }
 
-    roomRef.child('players').transaction(c => {
-        if (!c) return { p1: true };
-        if (!c.p1) return { ...c, p1: true };
-        if (!c.p2) return { ...c, p2: true };
-        return;
-    }, (err, ok, snap) => {
-        if (!ok) { alert("満員です"); return; }
-        myRole = !snap.val().p2 ? 'p1' : 'p2';
-        document.getElementById('role-txt').innerText = "あなたは " + myRole.toUpperCase();
-        roomRef.child('players/' + myRole).onDisconnect().remove();
-        sync();
-    });
-
-    function sync() {
+    function listen() {
         roomRef.on('value', snap => {
             const data = snap.val() || {};
             const p = data.players || {};
@@ -125,7 +112,7 @@
             } else {
                 document.getElementById('lobby').style.display = 'flex';
                 isPlaying = false;
-                document.getElementById('status-txt').innerText = (p.p1 && p.p2) ? "準備完了！" : "相手を待っています...";
+                document.getElementById('status-info').innerText = (p.p1 && p.p2) ? "準備完了！" : "相手を待っています...";
                 if (myRole === 'p1' && p.p1 && p.p2) document.getElementById('start-btn').style.display = 'block';
             }
 
@@ -138,43 +125,46 @@
     }
 
     document.getElementById('start-btn').onclick = () => {
-        roomRef.update({ status: 'playing', turn: 'p1', word: getNext(""), time: 10.0 });
+        roomRef.update({ status: 'playing', turn: 'p1', word: words[Math.floor(Math.random()*words.length)], time: 10.0 });
     };
 
     function render(data) {
         document.getElementById('target-word').innerText = data.word;
         document.getElementById('timer-num').innerText = data.time.toFixed(1);
         document.getElementById('timer-bar').style.width = (data.time * 10) + "%";
-        
         document.getElementById('bomb').style.left = (data.turn === 'p1') ? "20%" : "80%";
-        document.getElementById('p1').classList.toggle('active-turn', data.turn === 'p1');
-        document.getElementById('p2').classList.toggle('active-turn', data.turn === 'p2');
+        document.getElementById('p1-box').classList.toggle('active-turn', data.turn === 'p1');
+        document.getElementById('p2-box').classList.toggle('active-turn', data.turn === 'p2');
 
+        const input = document.getElementById('hidden-input');
+        const view = document.getElementById('user-input-view');
+        
         if (data.turn === myRole) {
-            document.getElementById('hidden-input').focus();
+            input.focus();
         } else {
-            // 相手のターンになったら自分の入力表示をリセット
-            document.getElementById('hidden-input').value = "";
-            document.getElementById('user-input-view').innerText = "";
+            // 【重要】自分のターンじゃない時は強制クリア
+            input.value = "";
+            view.innerText = "";
         }
     }
 
-    const inputEl = document.getElementById('hidden-input');
-    const viewEl = document.getElementById('user-input-view');
+    const input = document.getElementById('hidden-input');
+    const view = document.getElementById('user-input-view');
 
-    inputEl.addEventListener('input', () => {
-        const val = inputEl.value;
-        viewEl.innerText = val;
+    input.addEventListener('input', () => {
+        const val = input.value;
+        view.innerText = val;
 
         roomRef.get().then(snap => {
             const d = snap.val();
-            if (d.turn === myRole && val === d.word) {
-                // 正解！クリアして送信
-                inputEl.value = "";
-                viewEl.innerText = "";
+            if (isPlaying && d.turn === myRole && val === d.word) {
+                // 正解！送信前にローカルを即クリア
+                input.value = "";
+                view.innerText = "";
+                
                 roomRef.update({
                     turn: (myRole === 'p1' ? 'p2' : 'p1'),
-                    word: getNext(d.word),
+                    word: words[Math.floor(Math.random()*words.length)],
                     time: Math.min(d.time + 1.2, 10.0)
                 });
             }
@@ -191,8 +181,9 @@
         }
     }, 100);
 
-    // 画面タップで入力を再フォーカス
-    document.body.addEventListener('touchstart', () => { if(isPlaying) inputEl.focus(); });
+    document.body.addEventListener('click', () => { if(isPlaying) input.focus(); });
+    
+    join();
 </script>
 </body>
 </html>

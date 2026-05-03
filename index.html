@@ -3,69 +3,70 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Flick Bomb Battle Online</title>
+    <title>BOMB TYPING BATTLE</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     
     <style>
-        :root { 
-            --blue-bg: #4facfe;
-            --accent-orange: #ff9800;
-        }
-        body { font-family: sans-serif; background-color: #222; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+        :root { --p1-color: #8bc34a; --p2-color: #f44336; --bg-blue: #4facfe; }
+        body { font-family: 'Arial Rounded MT Bold', sans-serif; background-color: #333; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+        #game-screen { position: relative; width: 100vw; height: 100vh; max-width: 450px; background: var(--bg-blue); border: 4px solid #fff; box-sizing: border-box; }
+
+        /* ロビー */
+        #lobby { position: absolute; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; }
+        .card { background: white; color: #333; padding: 25px; border-radius: 20px; text-align: center; width: 80%; }
+        #start-btn { background: #ff4b2b; color: white; border: none; padding: 15px 30px; font-size: 20px; border-radius: 50px; cursor: pointer; margin-top: 15px; display: none; width: 100%; font-weight: bold; }
+
+        /* ヘッダー UI */
+        #top-bar { position: absolute; top: 20px; width: 100%; display: flex; flex-direction: column; align-items: center; z-index: 50; }
+        #timer-label { color: white; font-size: 50px; font-weight: 900; text-shadow: 3px 3px 0 #000; margin-bottom: 5px; }
+        #timer-wrap { width: 80%; height: 20px; background: rgba(0,0,0,0.3); border-radius: 10px; overflow: hidden; border: 3px solid white; }
+        #timer-bar { width: 100%; height: 100%; background: linear-gradient(90deg, #ff9800, #ff4b2b); transition: width 0.1s linear; }
+
+        /* お題パネル */
+        #word-area { position: absolute; top: 25%; left: 50%; transform: translateX(-50%); width: 85%; background: white; padding: 30px 10px; border-radius: 20px; text-align: center; box-shadow: 0 10px 0 rgba(0,0,0,0.2); z-index: 40; }
+        #target-word { font-size: 42px; font-weight: bold; color: #333; margin: 0; }
+        #input-view { font-size: 24px; color: #ff4b2b; margin-top: 10px; min-height: 1.2em; letter-spacing: 2px; }
+
+        /* キャラクターと爆弾 */
+        .player { position: absolute; bottom: 20%; width: 90px; height: 90px; transition: 0.3s; z-index: 30; }
+        #p1-char { left: 30px; background: var(--p1-color); border-radius: 20px; border: 4px solid white; }
+        #p2-char { right: 30px; background: var(--p2-color); border-radius: 20px; border: 4px solid white; }
+        .active-turn { transform: scale(1.2); box-shadow: 0 0 20px #fff; }
+        .label { position: absolute; top: -30px; width: 100%; text-align: center; color: white; font-weight: bold; }
+
+        #bomb { position: absolute; bottom: 22%; left: 50%; transform: translateX(-50%); font-size: 60px; z-index: 45; transition: left 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); display: none; }
         
-        #game-screen { position: relative; width: 100vw; height: 100vh; max-width: 500px; background: var(--blue-bg); overflow: hidden; border: 6px solid #fff; box-sizing: border-box; }
-
-        /* ロビー画面 */
-        #lobby-screen { 
-            position: absolute; inset: 0; 
-            background: var(--blue-bg); 
-            z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; 
-        }
-        .lobby-card {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 30px; border-radius: 20px; text-align: center; width: 80%;
-        }
-        #start-btn { 
-            background: #ff4b2b; color: white; border: none; padding: 15px 30px; 
-            font-size: 20px; font-weight: bold; border-radius: 50px; cursor: pointer; 
-            margin-top: 20px; display: none; width: 100%;
-        }
-
-        /* ゲーム中 UI */
-        #timer-container { position: absolute; top: 0; left: 0; width: 100%; height: 14px; background: rgba(0,0,0,0.2); }
-        #timer-bar { width: 100%; height: 100%; background: #ff4b2b; transition: width 0.1s linear; }
-        #word-panel { position: absolute; top: 15%; left: 50%; transform: translateX(-50%); background: white; width: 80%; padding: 20px; border-radius: 15px; text-align: center; box-shadow: 0 8px 0 var(--accent-orange); }
-        #target-word { font-size: 36px; font-weight: bold; margin: 0; color: #333; }
-        .character { position: absolute; bottom: 30%; width: 70px; filter: grayscale(100%); opacity: 0.5; }
-        #player-left { left: 40px; }
-        #player-right { right: 40px; }
-        .connected { filter: grayscale(0%); opacity: 1; }
-        #bomb { position: absolute; bottom: 33%; left: 50%; width: 70px; transform: translateX(-50%); display: none; font-size: 50px; }
-        #input-field { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; }
+        #input-field { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; z-index: 1; }
     </style>
 </head>
 <body>
 
 <div id="game-screen">
-    <div id="lobby-screen">
-        <div class="lobby-card">
-            <h2 style="margin:0">LOBBY</h2>
-            <p id="room-display" style="font-size:12px; color:#888;">Room: --</p>
-            <p id="role-display" style="font-weight:bold; font-size:18px; color:#333;">接続中...</p>
-            <p id="wait-msg" style="color:#ff4b2b;">お待ちください...</p>
-            <button id="start-btn">ゲーム開始！</button>
+    <div id="lobby">
+        <div class="card">
+            <h2 id="room-id">ROOM: --</h2>
+            <h3 id="my-role">接続中...</h3>
+            <p id="status-text">読み込み中...</p>
+            <button id="start-btn">バトル開始！</button>
         </div>
     </div>
 
-    <div id="timer-container"><div id="timer-bar"></div></div>
-    <div id="word-panel"><p id="target-word">READY?</p></div>
+    <div id="top-bar">
+        <div id="timer-label">10.0</div>
+        <div id="timer-wrap"><div id="timer-bar"></div></div>
+    </div>
 
-    <div id="player-left" class="character"><img src="https://api.iconify.design/mdi:account.svg?color=%238bc34a" width="70"></div>
-    <div id="player-right" class="character"><img src="https://api.iconify.design/mdi:account.svg?color=%23f44336" width="70"></div>
+    <div id="word-area">
+        <div id="target-word">READY?</div>
+        <div id="input-view"></div>
+    </div>
+
+    <div id="p1-char" class="player"><div class="label">P1</div></div>
+    <div id="p2-char" class="player"><div class="label">P2</div></div>
 
     <div id="bomb">💣</div>
-    <input type="text" id="input-field" autocomplete="off">
+    <input type="text" id="input-field" autocomplete="off" autofocus>
 </div>
 
 <script>
@@ -81,137 +82,132 @@
     };
 
     firebase.initializeApp(firebaseConfig);
-    const database = firebase.database();
+    const db = firebase.database();
     const urlParams = new URLSearchParams(window.location.search);
     const roomId = urlParams.get('room') || 'default_room';
-    const roomRef = database.ref('rooms/' + roomId);
+    const roomRef = db.ref('rooms/' + roomId);
 
     let myRole = null;
-    let gameActive = false;
-    const wordList = ["りんご", "すいか", "みかん", "ばなな", "ふんどし"];
+    let isPlaying = false;
+    const wordList = ["りんご", "すいか", "みかん", "ばなな", "ぶどう", "いちご", "れもん"];
 
-    const input = document.getElementById('input-field');
-    const targetH = document.getElementById('target-word');
-    const bomb = document.getElementById('bomb');
-    const timerBar = document.getElementById('timer-bar');
-    const lobby = document.getElementById('lobby-screen');
-    const startBtn = document.getElementById('start-btn');
-    const waitMsg = document.getElementById('wait-msg');
+    // 入室処理
+    roomRef.child('players').transaction(cur => {
+        if (!cur) return { p1: true };
+        if (!cur.p1) return { ...cur, p1: true };
+        if (!cur.p2) return { ...cur, p2: true };
+        return; // full
+    }, (err, committed, snap) => {
+        if (!committed) { alert("部屋が満員です"); return; }
+        
+        // 自分の役割を確定
+        const players = snap.val();
+        myRole = (!players.p2) ? 'p1' : 'p2';
+        document.getElementById('my-role').innerText = "あなたは " + myRole.toUpperCase();
+        document.getElementById('room-id').innerText = "ROOM: " + roomId;
+        roomRef.child('players/' + myRole).onDisconnect().remove();
+        
+        startListening();
+    });
 
-    document.getElementById('room-display').innerText = `Room: ${roomId}`;
+    function startListening() {
+        roomRef.on('value', snap => {
+            const data = snap.val() || {};
+            const p = data.players || {};
 
-    // 入室処理：空いている場所を探して入る
-    async function joinRoom() {
-        const snapshot = await roomRef.child('players').get();
-        const players = snapshot.val() || {};
-
-        // もし誰もいなければ一度部屋をリセット（満員バグ防止）
-        if (Object.keys(players).length === 0) {
-            await roomRef.remove();
-        }
-
-        // 空き枠に自分を入れる
-        roomRef.child('players').transaction((currentPlayers) => {
-            if (currentPlayers === null) return { p1: true };
-            if (!currentPlayers.p1) return { ...currentPlayers, p1: true };
-            if (!currentPlayers.p2) return { ...currentPlayers, p2: true };
-            return; // 満員
-        }, (error, committed, snapshot) => {
-            if (committed) {
-                const data = snapshot.val();
-                // 自分がどちらのキーを持っているか判定
-                // 簡易的に、最後に増えたのが自分
-                myRole = (!players.p1) ? 'p1' : 'p2';
-                document.getElementById('role-display').innerText = `あなたは ${myRole.toUpperCase()} です`;
-                roomRef.child('players/' + myRole).onDisconnect().remove();
-                listenRoom();
-            } else {
-                alert("満員です。URLの最後に ?room=2 を追加して別室へ。");
-            }
-        });
-    }
-
-    function listenRoom() {
-        roomRef.on('value', (snapshot) => {
-            const data = snapshot.val() || {};
-            const players = data.players || {};
-
-            // 接続表示
-            document.getElementById('player-left').classList.toggle('connected', !!players.p1);
-            document.getElementById('player-right').classList.toggle('connected', !!players.p2);
-
-            // スタートボタン表示（P1のみ）
-            if (myRole === 'p1' && players.p1 && players.p2 && data.status !== 'playing') {
-                startBtn.style.display = 'block';
-                waitMsg.innerText = "準備完了！";
-            } else {
-                startBtn.style.display = 'none';
-                if (data.status !== 'playing') waitMsg.innerText = "相手の参加を待っています...";
-            }
-
-            // ゲーム状態の同期
+            // ロビー管理
             if (data.status === 'playing') {
-                if (!gameActive) {
-                    gameActive = true;
-                    lobby.style.display = 'none';
-                    bomb.style.display = 'block';
-                }
-                updateUI(data);
-            } else if (data.status === 'gameOver' && gameActive) {
-                gameActive = false;
-                alert((data.winner === myRole ? "勝ちました！" : "負けました...") + " (P" + data.winner.slice(1) + "の勝利)");
-                location.reload(); // リセットしてロビーへ
+                document.getElementById('lobby').style.display = 'none';
+                document.getElementById('bomb').style.display = 'block';
+                isPlaying = true;
+                updateGameUI(data);
+            } else {
+                document.getElementById('lobby').style.display = 'flex';
+                document.getElementById('bomb').style.display = 'none';
+                isPlaying = false;
+                document.getElementById('status-text').innerText = (p.p1 && p.p2) ? "準備完了！" : "相手を待っています...";
+                if (myRole === 'p1' && p.p1 && p.p2) document.getElementById('start-btn').style.display = 'block';
+            }
+
+            if (data.status === 'gameOver') {
+                alert("P" + data.winner.toUpperCase().slice(1) + " の勝利！");
+                roomRef.update({ status: 'waiting' });
             }
         });
     }
 
-    startBtn.onclick = () => {
+    // ゲーム開始ボタン
+    document.getElementById('start-btn').onclick = () => {
         roomRef.update({
             status: 'playing',
-            currentTurn: 'p1',
-            timeLeft: 100,
-            currentWord: wordList[Math.floor(Math.random() * wordList.length)]
+            turn: 'p1',
+            word: wordList[Math.floor(Math.random() * wordList.length)],
+            time: 10.0
         });
     };
 
-    function updateUI(data) {
-        targetH.innerText = data.currentWord;
-        bomb.style.left = (data.currentTurn === 'p1' ? "25%" : "75%");
-        timerBar.style.width = data.timeLeft + "%";
-        if (data.currentTurn === myRole) input.focus(); else input.blur();
+    function updateGameUI(data) {
+        document.getElementById('target-word').innerText = data.word;
+        document.getElementById('timer-label').innerText = data.time.toFixed(1);
+        document.getElementById('timer-bar').style.width = (data.time * 10) + "%";
+        
+        // 爆弾の位置
+        const bombEl = document.getElementById('bomb');
+        bombEl.style.left = (data.turn === 'p1') ? "20%" : "80%";
+        
+        // アクティブ表示
+        document.getElementById('p1-char').classList.toggle('active-turn', data.turn === 'p1');
+        document.getElementById('p2-char').classList.toggle('active-turn', data.turn === 'p2');
+
+        if (data.turn === myRole) {
+            document.getElementById('input-field').focus();
+        }
     }
 
-    // 入力判定
-    input.addEventListener('input', () => {
-        roomRef.get().then(s => {
-            const data = s.val();
-            if (data.currentTurn !== myRole || !gameActive) return;
-            if (input.value === data.currentWord) {
+    // 入力処理
+    const inputField = document.getElementById('input-field');
+    inputField.addEventListener('input', () => {
+        roomRef.get().then(snap => {
+            const data = snap.val();
+            if (data.turn !== myRole || !isPlaying) return;
+
+            const typed = inputField.value;
+            document.getElementById('input-view').innerText = typed;
+
+            if (typed === data.word) {
                 roomRef.update({
-                    currentTurn: (myRole === 'p1' ? 'p2' : 'p1'),
-                    currentWord: wordList[Math.floor(Math.random() * wordList.length)],
-                    timeLeft: Math.min(data.timeLeft + 15, 100)
+                    turn: (myRole === 'p1' ? 'p2' : 'p1'),
+                    word: wordList[Math.floor(Math.random() * wordList.length)],
+                    time: Math.min(data.time + 1.5, 10.0) // 正解で少し回復
                 });
-                input.value = "";
+                inputField.value = "";
+                document.getElementById('input-view').innerText = "";
             }
         });
     });
 
-    // P1がタイマーを動かす
+    // P1が時間を管理する
     setInterval(() => {
-        if (myRole === 'p1' && gameActive) {
-            roomRef.child('timeLeft').transaction(t => {
-                const newT = (t || 100) - 1.5;
-                if (newT <= 0) {
-                    roomRef.update({ status: 'gameOver', winner: 'p2' }); // P1のタイムアウトはP2勝利
+        if (myRole === 'p1' && isPlaying) {
+            roomRef.child('time').transaction(t => {
+                const nt = (t || 10) - 0.1;
+                if (nt <= 0) {
+                    roomRef.get().then(s => {
+                        const d = s.val();
+                        roomRef.update({ status: 'gameOver', winner: d.turn === 'p1' ? 'p2' : 'p1' });
+                    });
                     return 0;
                 }
-                return newT;
+                return nt;
             });
         }
-    }, 200);
+    }, 100);
 
-    joinRoom();
+    // 画面タップでキーボード強制起動（スマホ対策）
+    document.addEventListener('touchstart', () => {
+        if (isPlaying) inputField.focus();
+    });
 </script>
+
 </body>
 </html>

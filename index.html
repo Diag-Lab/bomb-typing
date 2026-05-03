@@ -2,188 +2,93 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BOMB TYPING - FIXED</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ピクタイピング</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <style>
-        :root { --p1: #4CAF50; --p2: #F44336; --bg: #1a1a1a; }
-        body { font-family: sans-serif; background: var(--bg); margin: 0; display: flex; flex-direction: column; align-items: center; color: white; height: 100dvh; overflow: hidden; }
-        #game-container { width: 100%; max-width: 450px; height: 50%; position: relative; margin-top: 20px; }
-        #timer-num { font-size: 50px; font-weight: 900; color: #FFEB3B; text-align: center; }
-        #timer-bar-bg { width: 90%; height: 12px; background: #333; margin: 0 auto; border-radius: 10px; border: 2px solid #fff; overflow: hidden; }
-        #timer-bar { width: 100%; height: 100%; background: linear-gradient(90deg, #f44336, #ffeb3b); transition: width 0.1s linear; }
-        #display-area { width: 90%; margin: 20px auto; background: white; border-radius: 20px; padding: 25px 10px; text-align: center; border: 4px solid #333; box-shadow: 0 8px 0 #000; }
-        #target-word { color: #222; font-size: 45px; font-weight: 900; display: block; margin-bottom: 10px; }
-        #user-input-view { color: #E91E63; font-size: 30px; font-weight: bold; min-height: 40px; background: #f0f0f0; border-radius: 10px; display: flex; align-items: center; justify-content: center; border: 1px inset #ccc; }
-        .player { position: absolute; bottom: 10px; width: 80px; height: 80px; border-radius: 15px; border: 4px solid #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 20px; }
-        #p1-box { left: 20px; background: var(--p1); }
-        #p2-box { right: 20px; background: var(--p2); }
-        .active-turn { transform: scale(1.2); box-shadow: 0 0 20px #fff; border-color: #FFEB3B; }
-        #bomb { position: absolute; bottom: 20px; font-size: 55px; transition: left 0.3s ease; z-index: 10; transform: translateX(-50%); }
-        #hidden-input { position: fixed; top: -100px; left: -100px; opacity: 0; }
-        #lobby { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; display: flex; justify-content: center; align-items: center; }
-        .card { background: white; color: black; padding: 30px; border-radius: 25px; text-align: center; width: 80%; max-width: 300px; }
-        button { background: #ff5722; color: white; border: none; padding: 15px; font-size: 20px; border-radius: 50px; font-weight: bold; margin-top: 15px; width: 100%; cursor: pointer; }
+        body { font-family: 'Hiragino Sans', sans-serif; background: #64C5F7; margin: 0; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        
+        /* ホーム画面 */
+        #home-screen { display: flex; flex-direction: column; align-items: center; text-align: center; }
+        h1 { font-size: 60px; margin-bottom: 50px; text-shadow: 2px 4px 0 rgba(0,0,0,0.2); }
+        .match-btn { background: white; color: #64C5F7; border: none; padding: 20px 60px; font-size: 30px; font-weight: bold; border-radius: 50px; cursor: pointer; box-shadow: 0 10px 0 #4da6d4; }
+        .match-btn:active { transform: translateY(5px); box-shadow: 0 5px 0 #4da6d4; }
+
+        /* ゲーム画面 */
+        #game-screen { display: none; width: 100%; max-width: 450px; height: 100vh; background: #64C5F7; position: relative; }
+        #word-card { width: 80%; background: white; color: #333; margin: 50px auto; padding: 30px; border-radius: 20px; text-align: center; font-size: 40px; font-weight: bold; }
+        #bomb { position: absolute; bottom: 20%; font-size: 60px; transition: 0.3s; }
+        #input-field { position: fixed; bottom: 0; width: 100%; height: 60px; font-size: 24px; text-align: center; }
     </style>
 </head>
 <body>
 
-<div id="lobby">
-    <div class="card">
-        <h2 id="room-info">ROOM: --</h2>
-        <h3 id="role-info">接続中...</h3>
-        <p id="status-info">サーバーを確認中...</p>
-        <button id="start-btn" style="display:none">バトル開始！</button>
-    </div>
+<div id="home-screen">
+    <h1>ピクタイピング</h1>
+    <button class="match-btn" onclick="startMatchmaking()">マッチング開始</button>
 </div>
 
-<div id="game-container">
-    <div id="timer-num">10.0</div>
-    <div id="timer-bar-bg"><div id="timer-bar"></div></div>
-    <div id="display-area">
-        <span id="target-word">---</span>
-        <div id="user-input-view"></div>
-    </div>
-    <div id="p1-box" class="player">P1</div>
-    <div id="p2-box" class="player">P2</div>
+<div id="game-screen">
+    <div id="word-card">待機中...</div>
     <div id="bomb">💣</div>
+    <input type="text" id="input-field" placeholder="ここに入力...">
 </div>
-
-<input type="text" id="hidden-input" autocomplete="off">
 
 <script>
-    const firebaseConfig = {
-        apiKey: "AIzaSyCgQ8Pz_7PKOpD15wHegpTsHqF1SyocFl4",
-        authDomain: "typing-battle-2cad7.firebaseapp.com",
-        databaseURL: "https://typing-battle-2cad7-default-rtdb.firebaseio.com/",
-        projectId: "typing-battle-2cad7",
-        storageBucket: "typing-battle-2cad7.firebasestorage.app",
-        messagingSenderId: "801345135851",
-        appId: "1:801345135851:web:d43beff787727807834aae"
-    };
-
+    const firebaseConfig = { /* ここに以前のFirebase設定を入れてください */ };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-    const urlParams = new URLSearchParams(window.location.search);
-    const roomId = urlParams.get('room') || 'default_room';
-    const roomRef = db.ref('rooms/' + roomId);
-
-    let myRole = null;
-    let isPlaying = false;
-    const words = ["さくら", "みかん", "けーき", "すいか", "とまと", "らいおん", "めろん", "そーだ", "すまほ", "いぬ", "えび", "ねこ", "わに", "くつした"];
-
-    async function join() {
-        // 【重要】もし部屋が古ければ掃除する
-        const snap = await roomRef.child('players').get();
-        if (!snap.exists()) await roomRef.remove();
-
-        roomRef.child('players').transaction(cur => {
-            if (!cur) return { p1: true };
-            if (!cur.p1) return { ...cur, p1: true };
-            if (!cur.p2) return { ...cur, p2: true };
-            return; // 満員の場合は何もしない
-        }, (err, committed, result) => {
-            if (!committed) {
-                alert("満員です。URLの最後に ?room=2 などをつけてみてください。");
-                return;
-            }
-            // 自分がどっちか判定
-            const players = result.val();
-            myRole = (players.p2) ? 'p2' : 'p1';
-            
-            document.getElementById('room-info').innerText = "ROOM: " + roomId;
-            document.getElementById('role-info').innerText = "あなたは " + myRole.toUpperCase();
-            roomRef.child('players/' + myRole).onDisconnect().remove();
-            
-            listen();
-        });
-    }
-
-    function listen() {
-        roomRef.on('value', snap => {
-            const data = snap.val() || {};
-            const p = data.players || {};
-
-            if (data.status === 'playing') {
-                document.getElementById('lobby').style.display = 'none';
-                isPlaying = true;
-                render(data);
-            } else {
-                document.getElementById('lobby').style.display = 'flex';
-                isPlaying = false;
-                document.getElementById('status-info').innerText = (p.p1 && p.p2) ? "準備完了！" : "相手を待っています...";
-                if (myRole === 'p1' && p.p1 && p.p2) document.getElementById('start-btn').style.display = 'block';
-            }
-
-            if (data.status === 'gameOver') {
-                alert("勝者: P" + data.winner.toUpperCase().slice(1));
-                roomRef.update({ status: 'waiting' });
-                location.reload();
-            }
-        });
-    }
-
-    document.getElementById('start-btn').onclick = () => {
-        roomRef.update({ status: 'playing', turn: 'p1', word: words[Math.floor(Math.random()*words.length)], time: 10.0 });
-    };
-
-    function render(data) {
-        document.getElementById('target-word').innerText = data.word;
-        document.getElementById('timer-num').innerText = data.time.toFixed(1);
-        document.getElementById('timer-bar').style.width = (data.time * 10) + "%";
-        document.getElementById('bomb').style.left = (data.turn === 'p1') ? "20%" : "80%";
-        document.getElementById('p1-box').classList.toggle('active-turn', data.turn === 'p1');
-        document.getElementById('p2-box').classList.toggle('active-turn', data.turn === 'p2');
-
-        const input = document.getElementById('hidden-input');
-        const view = document.getElementById('user-input-view');
-        
-        if (data.turn === myRole) {
-            input.focus();
-        } else {
-            // 【重要】自分のターンじゃない時は強制クリア
-            input.value = "";
-            view.innerText = "";
-        }
-    }
-
-    const input = document.getElementById('hidden-input');
-    const view = document.getElementById('user-input-view');
-
-    input.addEventListener('input', () => {
-        const val = input.value;
-        view.innerText = val;
-
-        roomRef.get().then(snap => {
-            const d = snap.val();
-            if (isPlaying && d.turn === myRole && val === d.word) {
-                // 正解！送信前にローカルを即クリア
-                input.value = "";
-                view.innerText = "";
-                
-                roomRef.update({
-                    turn: (myRole === 'p1' ? 'p2' : 'p1'),
-                    word: words[Math.floor(Math.random()*words.length)],
-                    time: Math.min(d.time + 1.2, 10.0)
-                });
-            }
-        });
-    });
-
-    setInterval(() => {
-        if (myRole === 'p1' && isPlaying) {
-            roomRef.child('time').transaction(t => {
-                const nt = (t || 10) - 0.1;
-                if (nt <= 0) { roomRef.update({ status: 'gameOver', winner: 'p2' }); return 0; }
-                return nt;
-            });
-        }
-    }, 100);
-
-    document.body.addEventListener('click', () => { if(isPlaying) input.focus(); });
     
-    join();
+    let myRole = null;
+    let currentRoom = null;
+
+    async function startMatchmaking() {
+        document.getElementById('home-screen').style.display = 'none';
+        document.getElementById('game-screen').style.display = 'block';
+        
+        // 1. 全ルームを取得
+        const roomsSnap = await db.ref('rooms').once('value');
+        let matchedRoom = null;
+
+        // 2. 空いている部屋(プレイヤー1人)を探す
+        roomsSnap.forEach(snap => {
+            const roomData = snap.val();
+            if (Object.keys(roomData.players || {}).length === 1) {
+                matchedRoom = snap.key;
+            }
+        });
+
+        // 3. 部屋があれば参加、なければ作る
+        if (matchedRoom) {
+            currentRoom = matchedRoom;
+            myRole = 'p2';
+            await db.ref(`rooms/${currentRoom}/players/p2`).set(true);
+        } else {
+            currentRoom = 'room_' + Date.now();
+            myRole = 'p1';
+            await db.ref(`rooms/${currentRoom}/players/p1`).set(true);
+            await db.ref(`rooms/${currentRoom}/status`).set('waiting');
+        }
+
+        listenGame(currentRoom);
+    }
+
+    function listenGame(roomId) {
+        db.ref(`rooms/${roomId}`).on('value', snap => {
+            const data = snap.val();
+            if (data.status === 'waiting' && Object.keys(data.players).length === 2) {
+                db.ref(`rooms/${roomId}/status`).set('playing');
+                db.ref(`rooms/${roomId}/word`).set('りんご');
+                db.ref(`rooms/${roomId}/turn`).set('p1');
+            }
+            // ここに以前のゲーム進行ロジック（表示更新など）を統合
+            if(data.status === 'playing') {
+                document.getElementById('word-card').innerText = data.word;
+                // ...（以下、爆弾の移動や入力判定など）
+            }
+        });
+    }
 </script>
 </body>
 </html>

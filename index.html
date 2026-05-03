@@ -61,6 +61,7 @@
     const firebaseConfig = {
         apiKey: "AIzaSyCgQ8Pz_7PKOpD15wHegpTsHqF1SyocFl4",
         authDomain: "typing-battle-2cad7.firebaseapp.com",
+        // 公開中のデータベースURL
         databaseURL: "https://typing-battle-2cad7-default-rtdb.firebaseio.com/",
         projectId: "typing-battle-2cad7",
         storageBucket: "typing-battle-2cad7.firebasestorage.app",
@@ -198,7 +199,6 @@
         }, totalWaitTime);
     }
 
-    // タイマー処理（1つに集約）
     setInterval(async () => {
         if (myRole === 'p1' && isPlaying && !gameEnded) {
             const snap = await db.ref(`rooms/${currentRoom}`).get();

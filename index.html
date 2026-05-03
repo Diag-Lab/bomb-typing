@@ -32,7 +32,7 @@
 
 <div id="overlay">
     <div id="lobby-ui" class="card">
-        <h1 style="margin-top:0">BOMB TYPING</h1>
+        <h1>BOMB TYPING</h1>
         <button id="start-btn" class="btn" onclick="searchMatch()">マッチング開始</button>
         <p id="status-msg" style="margin-top:15px; font-weight:bold;">オンライン対戦</p>
     </div>
@@ -40,7 +40,7 @@
 </div>
 
 <div id="game-area">
-    <div id="timer-num">10.0</div>
+    <div id="timer-num">5.0</div>
     <div id="bar-bg"><div id="bar-fill"></div></div>
     <div id="word-box"><div id="target">---</div><div id="echo"></div></div>
     <div id="p1-ui" class="player">P1</div>
@@ -68,7 +68,16 @@
     let currentRoom = null;
     let isPlaying = false;
     let isBotMatch = false;
-    const words = ["りんご", "みかん", "すいか", "めろん", "いちご", "ばなな", "ぶどう", "れもん", "とまと", "なす", "えび", "いぬ", "ねこ", "わに"];
+
+    // 60個のお題リスト
+    const words = [
+        "りんご", "みかん", "すいか", "めろん", "いちご", "ぶどう", "れもん", "とまと", "なすび",
+        "きゅうり", "にんじん", "たまねぎ", "れんこん", "かぼちゃ", "しいたけ", "えのき", "さんま", "まぐろ", "あじ",
+        "えび", "かに", "いか", "たこ", "くらげ", "いるか", "くじら", "ぺんぎん", "らっこ", "あざらし",
+        "いぬ", "ねこ", "うさぎ", "ぱんだ", "きりん", "らいおん", "とら", "くま", "りす", "きつね",
+        "たぬき", "ひつじ", "やぎ", "うま", "しか", "わに", "かめ", "かえる", "すずめ", "つばめ",
+        "つくえ", "いす", "えんぴつ", "のーと", "かばん", "めがね", "とけい", "てれび", "すまほ", "くるま"
+    ];
 
     async function searchMatch() {
         document.getElementById('start-btn').style.display = 'none';
@@ -89,12 +98,9 @@
             currentRoom = 'room_' + Date.now();
             myRole = 'p1';
             await db.ref(`rooms/${currentRoom}`).set({ status: 'waiting', players: { p1: true }, time: 10.0 });
-            
-            // 5秒待っても誰も来なければBot戦へ
             setTimeout(async () => {
                 const roomSnap = await db.ref(`rooms/${currentRoom}`).get();
-                const roomData = roomSnap.val();
-                if (roomData && Object.keys(roomData.players || {}).length === 1) {
+                if (roomSnap.exists() && Object.keys(roomSnap.val().players || {}).length === 1) {
                     isBotMatch = true;
                     db.ref(`rooms/${currentRoom}/players/bot`).set(true);
                 }
@@ -120,7 +126,8 @@
                 if (isBotMatch && data.turn === 'bot') runBot(data.word);
             }
             if (data.status === 'gameOver') {
-                alert("勝者: " + (data.winner === 'bot' ? 'Bot' : data.winner.toUpperCase()));
+                isPlaying = false;
+                alert(data.winner === myRole ? "あなたの勝ち！" : "あなたの負け...");
                 location.reload();
             }
         });
@@ -147,24 +154,28 @@
         document.getElementById('p2-ui').innerText = isBotMatch ? "Bot" : "P2";
         document.getElementById('p2-ui').classList.toggle('active', data.turn === 'p2' || data.turn === 'bot');
 
-        const input = document.getElementById('hidden-input');
-        if (data.turn === myRole) {
-            input.focus();
+        if (data.turn !== myRole) {
+            clearInput();
         } else {
-            input.value = "";
-            document.getElementById('echo').innerText = "";
+            input.focus();
         }
     }
 
+    function clearInput() {
+        input.value = "";
+        document.getElementById('echo').innerText = "";
+        // PCの残像対策：次の描画フレームでもう一度空にする
+        setTimeout(() => { input.value = ""; document.getElementById('echo').innerText = ""; }, 0);
+    }
+
     function runBot(word) {
-        // Botのタイピング速度（1文字0.4秒〜0.7秒くらい）
-        const speed = (word.length * 500) + Math.random() * 1000;
+        const speed = (word.length * 550) + Math.random() * 800;
         setTimeout(() => {
             if (!isPlaying) return;
             db.ref(`rooms/${currentRoom}`).update({
                 turn: 'p1',
                 word: words[Math.floor(Math.random() * words.length)],
-                time: Math.min(10.0, 10.0) // Botは少し厳しめに回復させない
+                time: Math.min(10.0, 10.0)
             });
         }, speed);
     }
@@ -176,8 +187,7 @@
         db.ref(`rooms/${currentRoom}`).get().then(snap => {
             const d = snap.val();
             if (isPlaying && d.turn === myRole && val === d.word) {
-                input.value = "";
-                document.getElementById('echo').innerText = "";
+                clearInput();
                 db.ref(`rooms/${currentRoom}`).update({
                     turn: (isBotMatch ? 'bot' : 'p2'),
                     word: words[Math.floor(Math.random() * words.length)],
@@ -189,20 +199,10 @@
 
     setInterval(() => {
         if (myRole === 'p1' && isPlaying) {
-            db.ref(`rooms/${currentRoom}/time`).transaction(t => {
-                const nt = (t || 10) - 0.1;
-                if (nt <= 0) { 
-                    const winner = (isBotMatch && db.ref(`rooms/${currentRoom}/turn`).get() === 'p1') ? 'bot' : 'あなた';
-                    db.ref(`rooms/${currentRoom}`).update({ status: 'gameOver', winner: winner });
-                    return 0;
-                }
-                return nt;
-            });
-        }
-    }, 100);
-
-    document.addEventListener('touchstart', () => { if(isPlaying) input.focus(); });
-    document.addEventListener('click', () => { if(isPlaying) input.focus(); });
-</script>
-</body>
-</html>
+            db.ref(`rooms/${currentRoom}`).get().then(snap => {
+                const d = snap.val();
+                if (!d || d.status !== 'playing') return;
+                const nt = d.time - 0.1;
+                if (nt <= 0) {
+                    const winnerRole = d.turn === 'p1' ? (isBotMatch ? 'bot' : 'p2') : 'p1';
+                    db.ref(`rooms/${currentRoom}`).update({ status: 'gameOver', winner: winnerRole });

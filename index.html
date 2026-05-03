@@ -17,7 +17,6 @@
         #overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 2000; text-align: center; }
         .card { background: white; color: #1e293b; padding: 40px 20px; border-radius: 30px; width: 85%; max-width: 320px; }
         .btn { background: #f43f5e; color: white; border: none; padding: 18px 40px; font-size: 22px; font-weight: 900; border-radius: 50px; cursor: pointer; width: 100%; box-shadow: 0 6px 0 #9f1239; margin-top: 10px; }
-        #ready-go-msg { font-size: 80px; font-weight: 900; color: #fbbf24; display: none; }
         #ready-go { font-size: 60px; font-weight: 900; color: #fbbf24; display: none; text-align: center; }
         #game-area { width: 100%; max-width: 450px; height: 55%; position: relative; display: none; padding-top: 20px; }
         #timer-num { font-size: 50px; font-weight: 900; color: #fbbf24; text-align: center; }
@@ -94,25 +93,21 @@
             await db.ref(`rooms/${currentRoom}`).set({ status: 'waiting', players: { p1: true }, time: 10.0, turn: 'p1' });
             setTimeout(async () => {
                 const r = await db.ref(`rooms/${currentRoom}`).get();
-                if (r.val().status === 'waiting') { isBotMatch = true; db.ref(`rooms/${currentRoom}`).update({ status: 'starting', 'players/bot': true }); }
+                if (r && r.val().status === 'waiting') { isBotMatch = true; db.ref(`rooms/${currentRoom}`).update({ status: 'starting', 'players/bot': true }); }
             }, 4000);
         }
         listen();
     }
 
-   function listen() {
+    function listen() {
         db.ref(`rooms/${currentRoom}`).on('value', snap => {
             const d = snap.val(); 
             if (!d || gameEnded) return;
 
-            // ステータスに応じて動く
-            if (d.status === 'starting') {
-                runReadyGo(); // 演出開始
-            }
+            if (d.status === 'starting') runReadyGo();
             
             if (d.status === 'playing') {
                 if (!isPlaying) {
-                    // プレイ開始時の1回だけの処理
                     isPlaying = true;
                     document.getElementById('overlay').style.display = 'none';
                     document.getElementById('game-area').style.display = 'block';
@@ -122,8 +117,7 @@
             }
 
             if (d.status === 'gameOver') {
-                gameEnded = true; 
-                isPlaying = false;
+                gameEnded = true; isPlaying = false;
                 const isWin = (d.winner === myRole);
                 if (isWin) {
                     winCount++;
@@ -135,19 +129,16 @@
         });
     }
 
-    // 演出用：名前をわかりやすく変更
     function runReadyGo() {
         document.getElementById('lobby-ui').style.display = 'none';
         const rg = document.getElementById('ready-go');
         rg.style.display = 'block';
-
-        // P1が代表して2秒後にゲームを開始させる
         if (myRole === 'p1' && !isPlaying) {
             setTimeout(() => {
                 db.ref(`rooms/${currentRoom}`).update({ 
                     status: 'playing', 
                     word: words[Math.floor(Math.random() * words.length)],
-                    time: 10.0 // タイマーをリセットして開始
+                    time: 10.0 
                 });
             }, 2000);
         }
@@ -157,22 +148,11 @@
         document.getElementById('target').innerText = d.word;
         document.getElementById('timer-num').innerText = d.time.toFixed(1);
         document.getElementById('bar-fill').style.width = (d.time * 10) + "%";
-        
-        // 爆弾の移動
         document.getElementById('bomb-ui').style.left = (d.turn === 'p1') ? "20%" : "80%";
-        
-        // アクティブなプレイヤーを強調
         document.getElementById('p1-ui').classList.toggle('active', d.turn === 'p1');
         document.getElementById('p2-ui').classList.toggle('active', d.turn !== 'p1');
         document.getElementById('p2-ui').innerText = isBotMatch ? "BOT" : "P2";
-
-        // 入力制御
-        if (d.turn === myRole) {
-            input.focus(); 
-        } else {
-            // 自分のターンじゃない時は強制的に入力をクリアしてPCの文字残りも防止
-            if (input.value !== "") clearInput();
-        }
+        if (d.turn === myRole) { input.focus(); } else { if (input.value !== "") clearInput(); }
     }
 
     const input = document.getElementById('hidden-input');
@@ -196,16 +176,29 @@
 
     function clearInput() { input.value = ""; document.getElementById('echo').innerText = ""; }
 
+    let isBotRunning = false;
     function runBot(targetWord) {
-        if (!isPlaying || gameEnded) return;
+        if (!isPlaying || gameEnded || isBotRunning) return;
+        isBotRunning = true;
+        const speedPerChar = Math.random() * 0.3 + 0.5; 
+        const thinkingTime = 1000;
+        const totalWaitTime = (targetWord.length * speedPerChar * 1000) + thinkingTime;
+
         setTimeout(async () => {
+            isBotRunning = false;
             const snap = await db.ref(`rooms/${currentRoom}`).get();
-            if (snap.val() && snap.val().turn === 'bot') {
-                db.ref(`rooms/${currentRoom}`).update({ turn: 'p1', word: words[Math.floor(Math.random()*words.length)], time: Math.min(snap.val().time + 1.0, 10.0) });
+            const d = snap.val();
+            if (d && d.turn === 'bot' && d.status === 'playing') {
+                db.ref(`rooms/${currentRoom}`).update({ 
+                    turn: 'p1', 
+                    word: words[Math.floor(Math.random() * words.length)], 
+                    time: Math.min(d.time + 0.8, 10.0) 
+                });
             }
-        }, targetWord.length * 500 + 500);
+        }, totalWaitTime);
     }
 
+    // タイマー処理（1つに集約）
     setInterval(async () => {
         if (myRole === 'p1' && isPlaying && !gameEnded) {
             const snap = await db.ref(`rooms/${currentRoom}`).get();
@@ -213,7 +206,12 @@
             if (!d || d.status !== 'playing') return;
             const nt = Math.max(0, d.time - 0.1);
             if (nt <= 0) {
-                const winner = (d.turn === 'p1') ? (isBotMatch ? 'bot' : 'p2') : 'p1';
+                let winner;
+                if (isBotMatch) {
+                    winner = (d.turn === 'bot') ? 'p1' : 'bot';
+                } else {
+                    winner = (d.turn === 'p1') ? 'p2' : 'p1';
+                }
                 db.ref(`rooms/${currentRoom}`).update({ status: 'gameOver', winner: winner });
             } else {
                 db.ref(`rooms/${currentRoom}/time`).set(nt);

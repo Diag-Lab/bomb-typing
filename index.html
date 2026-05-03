@@ -3,41 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pict-Respective Mobile</title>
+    <title>Pict-Respective Online Battle</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+    
     <style>
-        :root { --blue-bg: #87ceeb; --panel-white: #ffffff; }
-        body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #333; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+        :root { 
+            --blue-bg: linear-gradient(180deg, #4facfe 0%, #00f2fe 100%);
+            --panel-white: #ffffff; 
+            --accent-orange: #ff9800;
+        }
+        body { font-family: 'Hiragino Kaku Gothic ProN', sans-serif; background-color: #222; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
         
-        #game-screen { position: relative; width: 100vw; height: 100vh; max-width: 500px; background-color: var(--blue-bg); overflow: hidden; border: 4px solid #fff; box-sizing: border-box; }
+        #game-screen { position: relative; width: 100vw; height: 100vh; max-width: 500px; background: var(--blue-bg); overflow: hidden; border: 6px solid #fff; box-sizing: border-box; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
 
-        /* タイマー関連 */
-        #timer-container { position: absolute; top: 0; left: 0; width: 100%; height: 12px; background: rgba(0,0,0,0.2); z-index: 20; }
-        #timer-bar { width: 100%; height: 100%; background: #ff4444; transition: width 0.1s linear; }
-        #timer-text { position: absolute; top: 20px; right: 20px; font-size: 28px; color: white; font-weight: bold; text-shadow: 2px 2px 0 #000; z-index: 20; }
+        /* タイマー */
+        #timer-container { position: absolute; top: 0; left: 0; width: 100%; height: 14px; background: rgba(0,0,0,0.3); z-index: 20; }
+        #timer-bar { width: 100%; height: 100%; background: linear-gradient(90deg, #ff416c, #ff4b2b); transition: width 0.1s linear; }
+        #timer-text { position: absolute; top: 25px; right: 20px; font-size: 32px; color: white; font-weight: 900; text-shadow: 3px 3px 0 #000; z-index: 20; }
 
         /* お題パネル */
-        #word-panel { position: absolute; top: 10%; left: 50%; transform: translateX(-50%); background: white; width: 85%; padding: 15px; border-radius: 10px; border-bottom: 8px solid #ffaa00; text-align: center; box-shadow: 0 6px 0 rgba(0,0,0,0.1); z-index: 10; }
-        #target-word { font-size: 32px; font-weight: bold; margin: 0; color: #333; }
-        #target-romaji { font-size: 16px; color: #888; margin-top: 5px; font-family: monospace; }
+        #word-panel { position: absolute; top: 12%; left: 50%; transform: translateX(-50%); background: white; width: 85%; padding: 20px; border-radius: 20px; border-bottom: 10px solid var(--accent-orange); text-align: center; box-shadow: 0 10px 20px rgba(0,0,0,0.2); z-index: 10; }
+        #target-word { font-size: 40px; font-weight: 900; margin: 0; color: #333; letter-spacing: 2px; }
+        #target-romaji { font-size: 18px; color: #aaa; margin-top: 8px; font-family: 'Courier New', Courier, monospace; }
 
-        /* キャラクター（キーボードに被らない位置） */
-        .character { position: absolute; bottom: 45%; width: 70px; height: 120px; transition: transform 0.3s; text-align: center; }
-        .character img { width: 100%; filter: drop-shadow(3px 3px 0px #fff); }
-        .player-label { background: rgba(255,255,255,0.8); border-radius: 5px; padding: 2px 5px; font-size: 10px; margin-top: 5px; font-weight: bold; }
-        #player-left { left: 15px; }
-        #player-right { right: 15px; }
+        /* キャラクター */
+        .character { position: absolute; bottom: 35%; width: 80px; height: 130px; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); text-align: center; filter: grayscale(100%); opacity: 0.4; }
+        .character img { width: 100%; filter: drop-shadow(4px 4px 0px rgba(0,0,0,0.2)); }
+        .player-label { background: #333; color: white; border-radius: 20px; padding: 4px 10px; font-size: 12px; margin-top: 10px; font-weight: bold; }
+        #player-left { left: 30px; }
+        #player-right { right: 30px; }
+        .connected { filter: grayscale(0%); opacity: 1; }
+        .active-turn { transform: scale(1.3); }
 
         /* 爆弾 */
-        #bomb { position: absolute; bottom: 48%; left: 50%; width: 60px; height: 60px; transform: translateX(-50%); transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); font-size: 50px; display: flex; justify-content: center; align-items: center; z-index: 5; }
-        .bomb-ignite { animation: shake 0.1s infinite; }
+        #bomb { position: absolute; bottom: 38%; left: 50%; width: 80px; height: 80px; transform: translateX(-50%); transition: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55); font-size: 60px; display: none; justify-content: center; align-items: center; z-index: 5; filter: drop-shadow(0 5px 15px rgba(0,0,0,0.3)); }
+        .bomb-ignite { animation: shake 0.15s infinite; }
 
-        #input-field { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; }
-        #tap-guide { position: absolute; top: 55%; width: 100%; text-align: center; color: white; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); font-size: 20px; animation: blink 1.5s infinite; }
+        /* 入力 & ガイド */
+        #input-field { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: default; }
+        #tap-guide { position: absolute; top: 60%; width: 100%; text-align: center; color: white; font-weight: 900; text-shadow: 0 4px 8px rgba(0,0,0,0.5); font-size: 24px; animation: blink 1.5s infinite; z-index: 15; }
 
-        @keyframes shake { 0% { transform: translateX(-50%) rotate(0deg); } 50% { transform: translateX(-52%) rotate(5deg); } 100% { transform: translateX(-48%) rotate(-5deg); } }
-        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-        .active-turn { transform: scale(1.2); }
-        .hidden { display: none; }
+        @keyframes shake { 0% { transform: translateX(-50%) rotate(0deg); } 25% { transform: translateX(-54%) rotate(5deg); } 75% { transform: translateX(-46%) rotate(-5deg); } 100% { transform: translateX(-50%) rotate(0deg); } }
+        @keyframes blink { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(0.95); } }
     </style>
 </head>
 <body>
@@ -47,37 +55,41 @@
     <div id="timer-text">10.0</div>
     
     <div id="word-panel">
-        <p id="target-word">READY?</p>
-        <div id="target-romaji">Tap to Start</div>
+        <p id="target-word">CONNECTING...</p>
+        <div id="target-romaji">サーバーに接続中</div>
     </div>
 
-    <div id="player-left" class="character">
-        <img src="https://api.iconify.design/mdi:human-male.svg?color=%238bc34a">
-        <div class="player-label">P1</div>
-    </div>
-    
-    <div id="player-right" class="character">
-        <img src="https://api.iconify.design/mdi:human-male.svg?color=%23f44336">
-        <div class="player-label">P2</div>
-    </div>
+    <div id="player-left" class="character"><img src="https://api.iconify.design/mdi:account-tie.svg?color=%238bc34a"><div class="player-label">P1</div></div>
+    <div id="player-right" class="character"><img src="https://api.iconify.design/mdi:account-tie.svg?color=%23f44336"><div class="player-label">P2</div></div>
 
     <div id="bomb" class="bomb-ignite">💣</div>
-    <div id="tap-guide">画面をタップして開始！</div>
+    <div id="tap-guide">タップして接続</div>
 
-    <input type="text" id="input-field" autocomplete="off">
+    <input type="text" id="input-field" autocomplete="off" autofocus>
 </div>
 
 <script>
-    const wordList = [
-        {h: "ふんどし", r: "hundosi"}, {h: "りんご", r: "ringo"}, {h: "すいか", r: "suika"},
-        {h: "みかん", r: "mikan"}, {h: "ばなな", r: "banana"}, {h: "つくえ", r: "tukue"},
-        {h: "いす", r: "isu"}, {h: "ねこ", r: "neko"}, {h: "いぬ", r: "inu"}
-    ];
+    // ★★★ Firebaseの設定 ★★★
+    const firebaseConfig = {
+        apiKey: "AIzaSyCgQ8Pz_7PKOpD15wHegpTsHqF1SyocFl4",
+        authDomain: "typing-battle-2cad7.firebaseapp.com",
+        databaseURL: "https://typing-battle-2cad7-default-rtdb.firebaseio.com/",
+        projectId: "typing-battle-2cad7",
+        storageBucket: "typing-battle-2cad7.firebasestorage.app",
+        messagingSenderId: "801345135851",
+        appId: "1:801345135851:web:d43beff787727807834aae"
+    };
 
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomId = urlParams.get('room') || 'default_room';
+    const roomRef = database.ref('rooms/' + roomId);
+
+    let myRole = null; 
     let gameActive = false;
-    let currentPlayer = "left";
-    let timeLeft = 10.0;
     let timerInterval;
+    const wordList = [{h: "ふんどし", r: "hundosi"}, {h: "りんご", r: "ringo"}, {h: "すいか", r: "suika"}, {h: "みかん", r: "mikan"}, {h: "ばなな", r: "banana"}];
 
     const input = document.getElementById('input-field');
     const targetH = document.getElementById('target-word');
@@ -89,67 +101,104 @@
     const pRight = document.getElementById('player-right');
     const guide = document.getElementById('tap-guide');
 
-    function setNextWord() {
-        const item = wordList[Math.floor(Math.random() * wordList.length)];
-        targetH.innerText = item.h;
-        targetR.innerText = item.r;
-        input.value = "";
+    // 入室処理
+    roomRef.child('players').transaction((players) => {
+        if (!players) players = {};
+        if (!players.left) { myRole = 'left'; players.left = true; }
+        else if (!players.right) { myRole = 'right'; players.right = true; }
+        return players;
+    }, (err, committed) => {
+        if (committed) initGame();
+    });
+
+    roomRef.child('players/' + myRole).onDisconnect().remove();
+
+    function initGame() {
+        targetH.innerText = "READY?";
+        targetR.innerText = (myRole === 'left' ? "あなたは P1 (左) です" : "あなたは P2 (右) です");
+        guide.innerText = "相手の接続を待機中...";
+        
+        roomRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (!data) return;
+
+            if(data.players?.left) pLeft.classList.add('connected'); else pLeft.classList.remove('connected');
+            if(data.players?.right) pRight.classList.add('connected'); else pRight.classList.remove('connected');
+
+            if (data.status === 'playing') {
+                if (!gameActive) startGameLocal();
+                updateTurnUI(data.currentTurn);
+                targetH.innerText = data.currentWord.h;
+                targetR.innerText = data.currentWord.r;
+                timerBar.style.width = (data.timeLeft * 10) + "%";
+                timerText.innerText = Math.max(0, data.timeLeft).toFixed(1);
+            } else if (data.status === 'gameOver') {
+                gameOverLocal(data.winner);
+            }
+
+            if (data.players?.left && data.players?.right && !gameActive) {
+                guide.innerText = (myRole === 'left' ? "タップして開始！" : "P1の開始を待っています");
+            }
+        });
     }
 
-    function startGame() {
-        gameActive = true;
-        timeLeft = 10.0;
-        currentPlayer = "left";
-        guide.classList.add('hidden');
-        updateTurnUI();
-        setNextWord();
+    document.addEventListener('click', () => {
+        if (myRole === 'left' && !gameActive && pRight.classList.contains('connected')) {
+            roomRef.update({
+                status: 'playing',
+                currentTurn: 'left',
+                timeLeft: 10.0,
+                currentWord: wordList[0]
+            });
+        }
         input.focus();
+    });
 
-        if(timerInterval) clearInterval(timerInterval);
-        timerInterval = setInterval(() => {
-            timeLeft -= 0.1;
-            timerBar.style.width = (timeLeft * 10) + "%";
-            timerText.innerText = Math.max(0, timeLeft).toFixed(1);
-            if (timeLeft <= 0) gameOver();
-        }, 100);
+    function startGameLocal() {
+        gameActive = true;
+        guide.classList.add('hidden');
+        bomb.style.display = 'flex';
+        if (myRole === 'left') {
+            let localTime = 10.0;
+            timerInterval = setInterval(() => {
+                localTime -= 0.1;
+                roomRef.update({ timeLeft: localTime });
+                if (localTime <= 0) {
+                    roomRef.update({ status: 'gameOver', winner: 'right', timeLeft: 0 });
+                    clearInterval(timerInterval);
+                }
+            }, 100);
+        }
     }
 
-    function gameOver() {
+    function gameOverLocal(winner) {
         gameActive = false;
         clearInterval(timerInterval);
-        alert("ドカーン！ P" + (currentPlayer === "left" ? "1" : "2") + "の負け！");
-        targetH.innerText = "GAME OVER";
-        targetR.innerText = "Tap to Retry";
-        guide.classList.remove('hidden');
+        bomb.style.display = 'none';
+        alert("ドカーン！ P" + (winner === 'left' ? "1" : "2") + " の勝利！");
+        location.reload(); 
     }
 
-    function updateTurnUI() {
-        if (currentPlayer === "left") {
-            bomb.style.left = "25%";
-            pLeft.classList.add('active-turn');
-            pRight.classList.remove('active-turn');
-        } else {
-            bomb.style.left = "75%";
-            pRight.classList.add('active-turn');
-            pLeft.classList.remove('active-turn');
-        }
+    function updateTurnUI(turn) {
+        bomb.style.left = (turn === "left" ? "25%" : "75%");
+        pLeft.classList.toggle('active-turn', turn === "left");
+        pRight.classList.toggle('active-turn', turn === "right");
     }
 
     input.addEventListener('input', () => {
-        if (!gameActive) return;
-        if (input.value === targetH.innerText) {
-            currentPlayer = (currentPlayer === "left") ? "right" : "left";
-            timeLeft = Math.min(timeLeft + 2.0, 10.0); // 正解で2秒回復
-            updateTurnUI();
-            setNextWord();
-        }
-    });
-
-    document.addEventListener('click', () => {
-        if (!gameActive) startGame();
-        else input.focus();
+        roomRef.get().then(s => {
+            const data = s.val();
+            if (data.currentTurn === myRole && input.value === targetH.innerText) {
+                const nextWord = wordList[Math.floor(Math.random() * wordList.length)];
+                roomRef.update({
+                    currentTurn: (myRole === 'left' ? 'right' : 'left'),
+                    currentWord: nextWord,
+                    timeLeft: Math.min(data.timeLeft + 2.0, 10.0)
+                });
+                input.value = "";
+            }
+        });
     });
 </script>
 </body>
 </html>
-

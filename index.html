@@ -16,10 +16,10 @@
         
         #game-screen { position: relative; width: 100vw; height: 100vh; max-width: 500px; background: var(--blue-bg); overflow: hidden; border: 6px solid #fff; box-sizing: border-box; }
 
-        /* ロビー画面のデザイン修正 */
+        /* ロビー画面 */
         #lobby-screen { 
             position: absolute; inset: 0; 
-            background: var(--blue-bg); /* 背景をゲームと同じ水色に */
+            background: var(--blue-bg); 
             z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; 
         }
         .lobby-card {
@@ -34,7 +34,7 @@
         }
         #start-btn:active { transform: translateY(3px); box-shadow: 0 2px 0 #b3301a; }
 
-        /* タイマー・お題パネル・キャラクター・爆弾（前回同様） */
+        /* ゲーム画面要素 */
         #timer-container { position: absolute; top: 0; left: 0; width: 100%; height: 14px; background: rgba(0,0,0,0.3); z-index: 20; }
         #timer-bar { width: 100%; height: 100%; background: linear-gradient(90deg, #ff416c, #ff4b2b); transition: width 0.1s linear; }
         #timer-text { position: absolute; top: 25px; right: 20px; font-size: 32px; color: white; font-weight: 900; text-shadow: 3px 3px 0 #000; z-index: 20; }
@@ -66,25 +66,21 @@
             <p id="room-display" style="color:#666; font-size:14px;">Room: --</p>
             <hr>
             <p id="role-display" style="color:#333; font-weight:bold; font-size:18px;">接続中...</p>
-            <p id="wait-msg" style="color:#ff4b2b; font-size:14px;">相手を待っています...</p>
+            <p id="wait-msg" style="color:#ff4b2b; font-size:14px;">読み込み中...</p>
             <button id="start-btn">対戦を始める！</button>
         </div>
     </div>
 
     <div id="timer-container"><div id="timer-bar"></div></div>
     <div id="timer-text">10.0</div>
-    
     <div id="word-panel">
         <p id="target-word">READY?</p>
         <div id="input-guide-container"></div>
     </div>
-
     <div id="player-left" class="character"><img src="https://api.iconify.design/mdi:account-tie.svg?color=%238bc34a"><div class="player-label">P1</div></div>
     <div id="player-right" class="character"><img src="https://api.iconify.design/mdi:account-tie.svg?color=%23f44336"><div class="player-label">P2</div></div>
-
     <div id="bomb" class="bomb-ignite">💣</div>
     <div id="credit">Reference: Pict-Typing</div>
-
     <input type="text" id="input-field" autocomplete="off">
 </div>
 
@@ -124,46 +120,82 @@
 
     document.getElementById('room-display').innerText = `Room: ${roomId}`;
 
-    // 入室・役割決定（「両方P1」を防ぐためにリセット処理を追加）
-    roomRef.child('players').transaction((players) => {
-        if (!players) {
-            // 自分が最初の入室者の場合、部屋全体を一度リセット
-            roomRef.update({ status: 'waiting', winner: null });
-            players = {};
-        }
-        if (!players.left) { myRole = 'left'; players.left = true; }
-        else if (!players.right) { myRole = 'right'; players.right = true; }
-        else { return; } // 満員
-        return players;
-    }, (err, committed) => {
-        if (committed && myRole) {
-            document.getElementById('role-display').innerText = `あなたは P${myRole === 'left' ? '1' : '2'} です`;
-            initLobbySync();
+    // ★重要：入室時のトランザクション（競合防止）
+    roomRef.transaction((roomData) => {
+        if (roomData === null) {
+            // 部屋がなければ新規作成
+            return {
+                players: { left: true },
+                status: 'waiting',
+                winner: null
+            };
         } else {
-            alert("この部屋は満員です。URLの最後に ?room=2 などを付けて別の部屋を作ってください。");
+            // 部屋がある場合、空いている方に座る
+            if (!roomData.players) roomData.players = {};
+            if (!roomData.players.left) {
+                roomData.players.left = true;
+                return roomData;
+            } else if (!roomData.players.right) {
+                roomData.players.right = true;
+                return roomData;
+            }
+            return; // 満員の場合は変更しない
+        }
+    }, (err, committed, snapshot) => {
+        if (committed && snapshot.exists()) {
+            const data = snapshot.val();
+            // 自分がどっちの役割になったか判定
+            // snapshot（確定後のデータ）を見て、自分がどっちか決める
+            // 注意：ここは少し工夫が必要
+            // 実際はtransaction内で決まったmyRoleを使いたいが
+            // snapshot.val().players を見て、自分が入る前の状態と比較するのは難しいため
+            // 以下のように「自分が書き込んだ側」を特定します
         }
     });
 
-    roomRef.child('players/' + myRole).onDisconnect().remove();
+    // シンプルにするため、個別の入室監視に変更
+    roomRef.child('players/left').transaction((current) => {
+        if (current === null) return true; // 空いてれば座る
+        return; 
+    }, (err, leftCommitted) => {
+        if (leftCommitted) {
+            myRole = 'left';
+            afterJoin();
+        } else {
+            roomRef.child('players/right').transaction((current) => {
+                if (current === null) return true;
+                return;
+            }, (err, rightCommitted) => {
+                if (rightCommitted) {
+                    myRole = 'right';
+                    afterJoin();
+                } else {
+                    alert("満員です。別の部屋名（?room=2 など）を試してください。");
+                }
+            });
+        }
+    });
+
+    function afterJoin() {
+        document.getElementById('role-display').innerText = `あなたは P${myRole === 'left' ? '1' : '2'} です`;
+        roomRef.child('players/' + myRole).onDisconnect().remove();
+        initLobbySync();
+    }
 
     function initLobbySync() {
         roomRef.on('value', (snapshot) => {
             const data = snapshot.val() || {};
-            
-            // 接続状態
             if(data.players?.left) pLeft.classList.add('connected'); else pLeft.classList.remove('connected');
             if(data.players?.right) pRight.classList.add('connected'); else pRight.classList.remove('connected');
 
-            // P1かつ両方揃ったらボタン表示
             if (myRole === 'left' && data.players?.left && data.players?.right && data.status !== 'playing') {
                 startBtn.style.display = 'block';
-                waitMsg.innerText = "準備が整いました！";
+                waitMsg.innerText = "準備完了！";
             } else if (data.status !== 'playing') {
                 startBtn.style.display = 'none';
-                waitMsg.innerText = data.players?.right ? "P1が開始するのを待っています..." : "相手が参加するのを待っています...";
+                waitMsg.innerText = data.players?.right ? "P1が開始するのを待っています..." : "相手の参加を待っています...";
             }
 
-            // ゲーム開始・更新
             if (data.status === 'playing') {
                 if (!gameActive) startGameLocal();
                 updateGameUI(data);
@@ -174,13 +206,12 @@
     }
 
     startBtn.onclick = () => {
-        const firstWord = wordList[Math.floor(Math.random() * wordList.length)];
         roomRef.update({
             status: 'playing',
             winner: null,
             currentTurn: 'left',
             timeLeft: 10.0,
-            currentWord: firstWord
+            currentWord: wordList[Math.floor(Math.random() * wordList.length)]
         });
     };
 
@@ -198,8 +229,7 @@
                 if (lastTime <= 0) {
                     clearInterval(timerInterval);
                     roomRef.get().then(s => {
-                        const d = s.val();
-                        roomRef.update({ status: 'gameOver', winner: d.currentTurn === 'left' ? 'right' : 'left' });
+                        roomRef.update({ status: 'gameOver', winner: s.val().currentTurn === 'left' ? 'right' : 'left' });
                     });
                 }
             }, 100);
@@ -233,14 +263,7 @@
         roomRef.get().then(s => {
             const data = s.val();
             if (data.currentTurn !== myRole || !gameActive) return;
-            const targetWord = data.currentWord.h;
-            const typed = input.value;
-            const spans = inputGuide.querySelectorAll('span');
-            spans.forEach((span, i) => {
-                if (i < typed.length) span.classList.add('typed');
-                else span.classList.remove('typed');
-            });
-            if (typed === targetWord) {
+            if (input.value === data.currentWord.h) {
                 roomRef.update({
                     currentTurn: (myRole === 'left' ? 'right' : 'left'),
                     currentWord: wordList[Math.floor(Math.random() * wordList.length)],
@@ -248,6 +271,11 @@
                 });
                 input.value = "";
             }
+            const spans = inputGuide.querySelectorAll('span');
+            spans.forEach((span, i) => {
+                if (i < input.value.length) span.classList.add('typed');
+                else span.classList.remove('typed');
+            });
         });
     });
 
@@ -259,8 +287,7 @@
         bomb.style.display = 'none';
         if (myRole === 'left') roomRef.update({ status: 'waiting' });
     }
-    
-    // 画面タップで入力を有効化
+
     document.addEventListener('touchstart', () => { if(gameActive) input.focus(); });
 </script>
 </body>

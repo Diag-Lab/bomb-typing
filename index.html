@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BOMB TYPING BATTLE</title>
+    <title>BOMB TYPING</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <style>
@@ -11,8 +11,9 @@
         body { font-family: 'Hiragino Sans', sans-serif; background: var(--bg); margin: 0; color: white; height: 100dvh; display: flex; flex-direction: column; align-items: center; overflow: hidden; }
         #overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 2000; text-align: center; }
         .card { background: white; color: #1e293b; padding: 40px 20px; border-radius: 30px; width: 85%; max-width: 320px; }
-        .btn { background: #f43f5e; color: white; border: none; padding: 18px 40px; font-size: 22px; font-weight: 900; border-radius: 50px; cursor: pointer; width: 100%; box-shadow: 0 6px 0 #9f1239; }
-        #ready-go { font-size: 80px; font-weight: 900; color: #fbbf24; display: none; }
+        .btn { background: #f43f5e; color: white; border: none; padding: 18px 40px; font-size: 22px; font-weight: 900; border-radius: 50px; cursor: pointer; width: 100%; box-shadow: 0 6px 0 #9f1239; margin-top: 10px; }
+        #ready-go-msg { font-size: 80px; font-weight: 900; color: #fbbf24; display: none; }
+        #ready-go { font-size: 60px; font-weight: 900; color: #fbbf24; display: none; text-align: center; }
         #game-area { width: 100%; max-width: 450px; height: 55%; position: relative; display: none; padding-top: 20px; }
         #timer-num { font-size: 50px; font-weight: 900; color: #fbbf24; text-align: center; }
         #bar-bg { width: 90%; height: 12px; background: #334155; border-radius: 10px; border: 2px solid #fff; margin: 5px auto; overflow: hidden; }
@@ -26,6 +27,7 @@
         .active { transform: scale(1.1); box-shadow: 0 0 20px #fff; border-color: #fbbf24; }
         #bomb-ui { position: absolute; bottom: 20px; font-size: 60px; transition: left 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); transform: translateX(-50%); }
         #hidden-input { position: fixed; top: -100px; left: -100px; width: 1px; height: 1px; opacity: 0; }
+        .stats-text { font-size: 16px; font-weight: bold; color: #475569; margin-top: 15px; text-align: center; }
     </style>
 </head>
 <body>
@@ -33,14 +35,15 @@
 <div id="overlay">
     <div id="lobby-ui" class="card">
         <h1>BOMB TYPING</h1>
+        <p class="stats-text">通算勝利数: <span id="win-count" style="color: #ec4899;">0</span>勝</p>
         <button id="start-btn" class="btn" onclick="searchMatch()">マッチング開始</button>
-        <p id="status-msg" style="margin-top:15px; font-weight:bold;">オンライン対戦</p>
+        <p id="status-msg" style="margin-top:15px; font-weight:bold; color: #475569;">オンライン対戦</p>
     </div>
     <div id="ready-go">READY</div>
 </div>
 
 <div id="game-area">
-    <div id="timer-num">5.0</div>
+    <div id="timer-num">10.0</div>
     <div id="bar-bg"><div id="bar-fill"></div></div>
     <div id="word-box"><div id="target">---</div><div id="echo"></div></div>
     <div id="p1-ui" class="player">P1</div>
@@ -65,7 +68,11 @@
     const db = firebase.database();
     
     let myRole = null, currentRoom = null, isPlaying = false, isBotMatch = false, gameEnded = false;
+    let winCount = parseInt(localStorage.getItem('bomb_typing_wins')) || 0;
+    
     const words = ["りんご", "みかん", "すいか", "めろん", "いちご", "ぶどう", "れもん", "とまと", "なすび", "きゅうり", "にんじん", "たまねぎ", "れんこん", "かぼちゃ", "しいたけ", "えのき", "さんま", "まぐろ", "あじ", "えび", "かに", "いか", "たこ", "くらげ", "いるか", "くじら", "ぺんぎん", "らっこ", "あざらし", "いぬ", "ねこ", "うさぎ", "ぱんだ", "きりん", "らいおん", "とら", "くま", "りす", "きつね", "たぬき", "ひつじ", "やぎ", "うま", "しか", "わに", "かめ", "かえる", "すずめ", "つばめ", "つくえ", "いす", "えんぴつ", "のーと", "かばん", "めがね", "とけい", "てれび", "すまほ", "くるま"];
+
+    document.getElementById('win-count').innerText = winCount;
 
     async function searchMatch() {
         document.getElementById('start-btn').style.display = 'none';
@@ -91,30 +98,36 @@
     function listen() {
         db.ref(`rooms/${currentRoom}`).on('value', snap => {
             const d = snap.val(); if (!d || gameEnded) return;
-            if (d.status === 'starting') showReadyGo();
+            if (d.status === 'starting') showReadyGoShow();
             if (d.status === 'playing') {
                 isPlaying = true;
                 document.getElementById('overlay').style.display = 'none';
                 document.getElementById('game-area').style.display = 'block';
-                updateUI(d);
+                UpdateUI(d);
                 if (isBotMatch && d.turn === 'bot') runBot(d.word);
             }
             if (d.status === 'gameOver') {
                 gameEnded = true; isPlaying = false;
-                alert(d.winner === myRole ? "あなたの勝ち！" : "あなたの負け...");
+                if (d.winner === myRole) {
+                    winCount++;
+                    localStorage.setItem('bomb_typing_wins', winCount);
+                    alert("あなたの勝ち！\n現在の通算勝利数: " + winCount + "勝");
+                } else {
+                    alert("あなたの負け...");
+                }
                 location.reload();
             }
         });
     }
 
-    function showReadyGo() {
+    function GoShow() {
         document.getElementById('lobby-ui').style.display = 'none';
         const rg = document.getElementById('ready-go');
         rg.style.display = 'block';
         if (myRole === 'p1') setTimeout(() => db.ref(`rooms/${currentRoom}`).update({ status: 'playing', word: words[Math.floor(Math.random()*words.length)] }), 2000);
     }
 
-    function updateUI(d) {
+    function UpdateUI(d) {
         document.getElementById('target').innerText = d.word;
         document.getElementById('timer-num').innerText = d.time.toFixed(1);
         document.getElementById('bar-fill').style.width = (d.time * 10) + "%";
@@ -133,7 +146,7 @@
         const d = snap.val();
         if (isPlaying && d.turn === myRole && val === d.word) {
             clearInput();
-            input.disabled = true; // 一時的に入力をロックして連打バグを防止
+            input.disabled = true;
             await db.ref(`rooms/${currentRoom}`).update({
                 turn: isBotMatch ? 'bot' : (myRole === 'p1' ? 'p2' : 'p1'),
                 word: words[Math.floor(Math.random() * words.length)],
@@ -150,18 +163,17 @@
         if (!isPlaying || gameEnded) return;
         setTimeout(async () => {
             const snap = await db.ref(`rooms/${currentRoom}`).get();
-            if (snap.val().turn === 'bot') {
+            if (snap.val() && snap.val().turn === 'bot') {
                 db.ref(`rooms/${currentRoom}`).update({ turn: 'p1', word: words[Math.floor(Math.random()*words.length)], time: Math.min(snap.val().time + 1.0, 10.0) });
             }
         }, targetWord.length * 500 + 500);
     }
 
-    // タイマー管理（P1がマスターとして計算）
     setInterval(async () => {
         if (myRole === 'p1' && isPlaying && !gameEnded) {
             const snap = await db.ref(`rooms/${currentRoom}`).get();
             const d = snap.val();
-            if (d.status !== 'playing') return;
+            if (!d || d.status !== 'playing') return;
             const nt = Math.max(0, d.time - 0.1);
             if (nt <= 0) {
                 const winner = (d.turn === 'p1') ? (isBotMatch ? 'bot' : 'p2') : 'p1';

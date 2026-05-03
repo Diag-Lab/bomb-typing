@@ -100,47 +100,79 @@
         listen();
     }
 
-    function listen() {
+   function listen() {
         db.ref(`rooms/${currentRoom}`).on('value', snap => {
-            const d = snap.val(); if (!d || gameEnded) return;
-            if (d.status === 'starting') showReadyGoShow();
+            const d = snap.val(); 
+            if (!d || gameEnded) return;
+
+            // ステータスに応じて動く
+            if (d.status === 'starting') {
+                runReadyGo(); // 演出開始
+            }
+            
             if (d.status === 'playing') {
-                isPlaying = true;
-                document.getElementById('overlay').style.display = 'none';
-                document.getElementById('game-area').style.display = 'block';
+                if (!isPlaying) {
+                    // プレイ開始時の1回だけの処理
+                    isPlaying = true;
+                    document.getElementById('overlay').style.display = 'none';
+                    document.getElementById('game-area').style.display = 'block';
+                }
                 UpdateUI(d);
                 if (isBotMatch && d.turn === 'bot') runBot(d.word);
             }
+
             if (d.status === 'gameOver') {
-                gameEnded = true; isPlaying = false;
-                if (d.winner === myRole) {
+                gameEnded = true; 
+                isPlaying = false;
+                const isWin = (d.winner === myRole);
+                if (isWin) {
                     winCount++;
                     localStorage.setItem('bomb_typing_wins', winCount);
-                    alert("あなたの勝ち！\n現在の通算勝利数: " + winCount + "勝");
-                } else {
-                    alert("あなたの負け...");
                 }
+                alert(isWin ? `あなたの勝ち！\n通算勝利数: ${winCount}勝` : "あなたの負け...");
                 location.reload();
             }
         });
     }
 
-    function GoShow() {
+    // 演出用：名前をわかりやすく変更
+    function runReadyGo() {
         document.getElementById('lobby-ui').style.display = 'none';
         const rg = document.getElementById('ready-go');
         rg.style.display = 'block';
-        if (myRole === 'p1') setTimeout(() => db.ref(`rooms/${currentRoom}`).update({ status: 'playing', word: words[Math.floor(Math.random()*words.length)] }), 2000);
+
+        // P1が代表して2秒後にゲームを開始させる
+        if (myRole === 'p1' && !isPlaying) {
+            setTimeout(() => {
+                db.ref(`rooms/${currentRoom}`).update({ 
+                    status: 'playing', 
+                    word: words[Math.floor(Math.random() * words.length)],
+                    time: 10.0 // タイマーをリセットして開始
+                });
+            }, 2000);
+        }
     }
 
     function UpdateUI(d) {
         document.getElementById('target').innerText = d.word;
         document.getElementById('timer-num').innerText = d.time.toFixed(1);
         document.getElementById('bar-fill').style.width = (d.time * 10) + "%";
+        
+        // 爆弾の移動
         document.getElementById('bomb-ui').style.left = (d.turn === 'p1') ? "20%" : "80%";
+        
+        // アクティブなプレイヤーを強調
         document.getElementById('p1-ui').classList.toggle('active', d.turn === 'p1');
         document.getElementById('p2-ui').classList.toggle('active', d.turn !== 'p1');
         document.getElementById('p2-ui').innerText = isBotMatch ? "BOT" : "P2";
-        if (d.turn === myRole) { input.focus(); } else { clearInput(); }
+
+        // 入力制御
+        if (d.turn === myRole) {
+            input.focus(); 
+        } else {
+            // 自分のターンじゃない時は強制的に入力をクリアしてPCの文字残りも防止
+            if (input.value !== "") clearInput();
+        }
     }
 
     const input = document.getElementById('hidden-input');

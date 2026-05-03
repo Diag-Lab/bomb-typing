@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BOMB TYPING</title>
+    <title>BOMB TYPING BATTLE</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <style>
@@ -17,15 +17,15 @@
         #timer-num { font-size: 50px; font-weight: 900; color: #fbbf24; text-align: center; }
         #bar-bg { width: 90%; height: 12px; background: #334155; border-radius: 10px; border: 2px solid #fff; margin: 5px auto; overflow: hidden; }
         #bar-fill { width: 100%; height: 100%; background: linear-gradient(90deg, #ef4444, #fbbf24); transition: width 0.1s linear; }
-        #word-box { width: 85%; background: white; color: #1e293b; margin: 20px auto; padding: 25px 10px; border-radius: 25px; text-align: center; border: 6px solid #334155; }
+        #word-box { width: 85%; background: white; color: #1e293b; margin: 20px auto; padding: 25px 10px; border-radius: 25px; text-align: center; border: 6px solid #334155; position: relative; }
         #target { font-size: 42px; font-weight: 900; }
         #echo { color: #db2777; font-size: 26px; font-weight: bold; min-height: 35px; background: #f1f5f9; border-radius: 12px; margin-top: 10px; display: flex; align-items: center; justify-content: center; }
-        .player { position: absolute; bottom: 10px; width: 75px; height: 75px; border-radius: 20px; border: 4px solid #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+        .player { position: absolute; bottom: 10px; width: 75px; height: 75px; border-radius: 20px; border: 4px solid #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; transition: all 0.3s ease; }
         #p1-ui { left: 20px; background: var(--p1); }
         #p2-ui { right: 20px; background: var(--p2); }
-        .active { transform: scale(1.2); box-shadow: 0 0 20px #fff; border-color: #fbbf24; }
-        #bomb-ui { position: absolute; bottom: 20px; font-size: 60px; transition: left 0.4s ease; transform: translateX(-50%); }
-        #hidden-input { position: fixed; top: -100px; opacity: 0; }
+        .active { transform: scale(1.1); box-shadow: 0 0 20px #fff; border-color: #fbbf24; }
+        #bomb-ui { position: absolute; bottom: 20px; font-size: 60px; transition: left 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); transform: translateX(-50%); }
+        #hidden-input { position: fixed; top: -100px; left: -100px; width: 1px; height: 1px; opacity: 0; }
     </style>
 </head>
 <body>
@@ -64,70 +64,44 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
     
-    let myRole = null;
-    let currentRoom = null;
-    let isPlaying = false;
-    let isBotMatch = false;
-
-    // 60個のお題リスト
-    const words = [
-        "りんご", "みかん", "すいか", "めろん", "いちご", "ぶどう", "れもん", "とまと", "なすび",
-        "きゅうり", "にんじん", "たまねぎ", "れんこん", "かぼちゃ", "しいたけ", "えのき", "さんま", "まぐろ", "あじ",
-        "えび", "かに", "いか", "たこ", "くらげ", "いるか", "くじら", "ぺんぎん", "らっこ", "あざらし",
-        "いぬ", "ねこ", "うさぎ", "ぱんだ", "きりん", "らいおん", "とら", "くま", "りす", "きつね",
-        "たぬき", "ひつじ", "やぎ", "うま", "しか", "わに", "かめ", "かえる", "すずめ", "つばめ",
-        "つくえ", "いす", "えんぴつ", "のーと", "かばん", "めがね", "とけい", "てれび", "すまほ", "くるま"
-    ];
+    let myRole = null, currentRoom = null, isPlaying = false, isBotMatch = false, gameEnded = false;
+    const words = ["りんご", "みかん", "すいか", "めろん", "いちご", "ぶどう", "れもん", "とまと", "なすび", "きゅうり", "にんじん", "たまねぎ", "れんこん", "かぼちゃ", "しいたけ", "えのき", "さんま", "まぐろ", "あじ", "えび", "かに", "いか", "たこ", "くらげ", "いるか", "くじら", "ぺんぎん", "らっこ", "あざらし", "いぬ", "ねこ", "うさぎ", "ぱんだ", "きりん", "らいおん", "とら", "くま", "りす", "きつね", "たぬき", "ひつじ", "やぎ", "うま", "しか", "わに", "かめ", "かえる", "すずめ", "つばめ", "つくえ", "いす", "えんぴつ", "のーと", "かばん", "めがね", "とけい", "てれび", "すまほ", "くるま"];
 
     async function searchMatch() {
         document.getElementById('start-btn').style.display = 'none';
-        document.getElementById('status-msg').innerText = "相手を探しています...";
-        
+        document.getElementById('status-msg').innerText = "接続中...";
         const snap = await db.ref('rooms').once('value');
         let foundId = null;
-        snap.forEach(s => {
-            const d = s.val();
-            if (d.status === 'waiting' && Object.keys(d.players || {}).length === 1) foundId = s.key;
-        });
+        snap.forEach(s => { if (s.val().status === 'waiting') foundId = s.key; });
 
         if (foundId) {
-            currentRoom = foundId;
-            myRole = 'p2';
-            await db.ref(`rooms/${currentRoom}/players/p2`).set(true);
+            currentRoom = foundId; myRole = 'p2';
+            await db.ref(`rooms/${currentRoom}`).update({ status: 'starting', 'players/p2': true });
         } else {
-            currentRoom = 'room_' + Date.now();
-            myRole = 'p1';
-            await db.ref(`rooms/${currentRoom}`).set({ status: 'waiting', players: { p1: true }, time: 10.0 });
+            currentRoom = 'room_' + Date.now(); myRole = 'p1';
+            await db.ref(`rooms/${currentRoom}`).set({ status: 'waiting', players: { p1: true }, time: 10.0, turn: 'p1' });
             setTimeout(async () => {
-                const roomSnap = await db.ref(`rooms/${currentRoom}`).get();
-                if (roomSnap.exists() && Object.keys(roomSnap.val().players || {}).length === 1) {
-                    isBotMatch = true;
-                    db.ref(`rooms/${currentRoom}/players/bot`).set(true);
-                }
-            }, 5000);
+                const r = await db.ref(`rooms/${currentRoom}`).get();
+                if (r.val().status === 'waiting') { isBotMatch = true; db.ref(`rooms/${currentRoom}`).update({ status: 'starting', 'players/bot': true }); }
+            }, 4000);
         }
         listen();
     }
 
     function listen() {
         db.ref(`rooms/${currentRoom}`).on('value', snap => {
-            const data = snap.val();
-            if (!data) return;
-
-            if (data.status === 'waiting' && (data.players.p2 || data.players.bot)) {
-                if (myRole === 'p1') db.ref(`rooms/${currentRoom}/status`).set('starting');
-            }
-            if (data.status === 'starting') showReadyGo();
-            if (data.status === 'playing') {
+            const d = snap.val(); if (!d || gameEnded) return;
+            if (d.status === 'starting') showReadyGo();
+            if (d.status === 'playing') {
+                isPlaying = true;
                 document.getElementById('overlay').style.display = 'none';
                 document.getElementById('game-area').style.display = 'block';
-                isPlaying = true;
-                sync(data);
-                if (isBotMatch && data.turn === 'bot') runBot(data.word);
+                updateUI(d);
+                if (isBotMatch && d.turn === 'bot') runBot(d.word);
             }
-            if (data.status === 'gameOver') {
-                isPlaying = false;
-                alert(data.winner === myRole ? "あなたの勝ち！" : "あなたの負け...");
+            if (d.status === 'gameOver') {
+                gameEnded = true; isPlaying = false;
+                alert(d.winner === myRole ? "あなたの勝ち！" : "あなたの負け...");
                 location.reload();
             }
         });
@@ -135,74 +109,70 @@
 
     function showReadyGo() {
         document.getElementById('lobby-ui').style.display = 'none';
-        document.getElementById('ready-go').style.display = 'block';
-        if (myRole === 'p1') {
-            setTimeout(() => {
-                db.ref(`rooms/${currentRoom}`).update({
-                    status: 'playing', turn: 'p1', word: words[Math.floor(Math.random() * words.length)]
-                });
-            }, 2000);
-        }
+        const rg = document.getElementById('ready-go');
+        rg.style.display = 'block';
+        if (myRole === 'p1') setTimeout(() => db.ref(`rooms/${currentRoom}`).update({ status: 'playing', word: words[Math.floor(Math.random()*words.length)] }), 2000);
     }
 
-    function sync(data) {
-        document.getElementById('target').innerText = data.word;
-        document.getElementById('timer-num').innerText = data.time.toFixed(1);
-        document.getElementById('bar-fill').style.width = (data.time * 10) + "%";
-        document.getElementById('bomb-ui').style.left = (data.turn === 'p1') ? "20%" : "80%";
-        document.getElementById('p1-ui').classList.toggle('active', data.turn === 'p1');
-        document.getElementById('p2-ui').innerText = isBotMatch ? "Bot" : "P2";
-        document.getElementById('p2-ui').classList.toggle('active', data.turn === 'p2' || data.turn === 'bot');
-
-        if (data.turn !== myRole) {
-            clearInput();
-        } else {
-            input.focus();
-        }
-    }
-
-    function clearInput() {
-        input.value = "";
-        document.getElementById('echo').innerText = "";
-        // PCの残像対策：次の描画フレームでもう一度空にする
-        setTimeout(() => { input.value = ""; document.getElementById('echo').innerText = ""; }, 0);
-    }
-
-    function runBot(word) {
-        const speed = (word.length * 550) + Math.random() * 800;
-        setTimeout(() => {
-            if (!isPlaying) return;
-            db.ref(`rooms/${currentRoom}`).update({
-                turn: 'p1',
-                word: words[Math.floor(Math.random() * words.length)],
-                time: Math.min(10.0, 10.0)
-            });
-        }, speed);
+    function updateUI(d) {
+        document.getElementById('target').innerText = d.word;
+        document.getElementById('timer-num').innerText = d.time.toFixed(1);
+        document.getElementById('bar-fill').style.width = (d.time * 10) + "%";
+        document.getElementById('bomb-ui').style.left = (d.turn === 'p1') ? "20%" : "80%";
+        document.getElementById('p1-ui').classList.toggle('active', d.turn === 'p1');
+        document.getElementById('p2-ui').classList.toggle('active', d.turn !== 'p1');
+        document.getElementById('p2-ui').innerText = isBotMatch ? "BOT" : "P2";
+        if (d.turn === myRole) { input.focus(); } else { clearInput(); }
     }
 
     const input = document.getElementById('hidden-input');
-    input.addEventListener('input', () => {
+    input.addEventListener('input', async () => {
         const val = input.value;
         document.getElementById('echo').innerText = val;
-        db.ref(`rooms/${currentRoom}`).get().then(snap => {
-            const d = snap.val();
-            if (isPlaying && d.turn === myRole && val === d.word) {
-                clearInput();
-                db.ref(`rooms/${currentRoom}`).update({
-                    turn: (isBotMatch ? 'bot' : 'p2'),
-                    word: words[Math.floor(Math.random() * words.length)],
-                    time: Math.min(d.time + 1.2, 10.0)
-                });
-            }
-        });
+        const snap = await db.ref(`rooms/${currentRoom}`).get();
+        const d = snap.val();
+        if (isPlaying && d.turn === myRole && val === d.word) {
+            clearInput();
+            input.disabled = true; // 一時的に入力をロックして連打バグを防止
+            await db.ref(`rooms/${currentRoom}`).update({
+                turn: isBotMatch ? 'bot' : (myRole === 'p1' ? 'p2' : 'p1'),
+                word: words[Math.floor(Math.random() * words.length)],
+                time: Math.min(d.time + 1.5, 10.0)
+            });
+            input.disabled = false;
+            input.focus();
+        }
     });
 
-    setInterval(() => {
-        if (myRole === 'p1' && isPlaying) {
-            db.ref(`rooms/${currentRoom}`).get().then(snap => {
-                const d = snap.val();
-                if (!d || d.status !== 'playing') return;
-                const nt = d.time - 0.1;
-                if (nt <= 0) {
-                    const winnerRole = d.turn === 'p1' ? (isBotMatch ? 'bot' : 'p2') : 'p1';
-                    db.ref(`rooms/${currentRoom}`).update({ status: 'gameOver', winner: winnerRole });
+    function clearInput() { input.value = ""; document.getElementById('echo').innerText = ""; }
+
+    function runBot(targetWord) {
+        if (!isPlaying || gameEnded) return;
+        setTimeout(async () => {
+            const snap = await db.ref(`rooms/${currentRoom}`).get();
+            if (snap.val().turn === 'bot') {
+                db.ref(`rooms/${currentRoom}`).update({ turn: 'p1', word: words[Math.floor(Math.random()*words.length)], time: Math.min(snap.val().time + 1.0, 10.0) });
+            }
+        }, targetWord.length * 500 + 500);
+    }
+
+    // タイマー管理（P1がマスターとして計算）
+    setInterval(async () => {
+        if (myRole === 'p1' && isPlaying && !gameEnded) {
+            const snap = await db.ref(`rooms/${currentRoom}`).get();
+            const d = snap.val();
+            if (d.status !== 'playing') return;
+            const nt = Math.max(0, d.time - 0.1);
+            if (nt <= 0) {
+                const winner = (d.turn === 'p1') ? (isBotMatch ? 'bot' : 'p2') : 'p1';
+                db.ref(`rooms/${currentRoom}`).update({ status: 'gameOver', winner: winner });
+            } else {
+                db.ref(`rooms/${currentRoom}/time`).set(nt);
+            }
+        }
+    }, 100);
+
+    document.addEventListener('click', () => input.focus());
+</script>
+</body>
+</html>

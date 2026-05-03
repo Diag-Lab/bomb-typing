@@ -2,93 +2,210 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ピクタイピング</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <style>
-        body { font-family: 'Hiragino Sans', sans-serif; background: #64C5F7; margin: 0; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        :root { --p1-color: #4CAF50; --p2-color: #F44336; --bg: #64C5F7; }
+        body { font-family: 'Hiragino Sans', sans-serif; background: var(--bg); margin: 0; color: white; display: flex; flex-direction: column; align-items: center; height: 100dvh; overflow: hidden; }
         
         /* ホーム画面 */
-        #home-screen { display: flex; flex-direction: column; align-items: center; text-align: center; }
-        h1 { font-size: 60px; margin-bottom: 50px; text-shadow: 2px 4px 0 rgba(0,0,0,0.2); }
-        .match-btn { background: white; color: #64C5F7; border: none; padding: 20px 60px; font-size: 30px; font-weight: bold; border-radius: 50px; cursor: pointer; box-shadow: 0 10px 0 #4da6d4; }
-        .match-btn:active { transform: translateY(5px); box-shadow: 0 5px 0 #4da6d4; }
+        #home-screen { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
+        h1 { font-size: 50px; margin-bottom: 40px; text-shadow: 3px 3px 0 rgba(0,0,0,0.1); }
+        .match-btn { background: white; color: #64C5F7; border: none; padding: 20px 50px; font-size: 28px; font-weight: bold; border-radius: 50px; cursor: pointer; box-shadow: 0 8px 0 #4da6d4; transition: 0.1s; }
+        .match-btn:active { transform: translateY(4px); box-shadow: 0 4px 0 #4da6d4; }
+        #status-text { margin-top: 20px; font-weight: bold; }
 
-        /* ゲーム画面 */
-        #game-screen { display: none; width: 100%; max-width: 450px; height: 100vh; background: #64C5F7; position: relative; }
-        #word-card { width: 80%; background: white; color: #333; margin: 50px auto; padding: 30px; border-radius: 20px; text-align: center; font-size: 40px; font-weight: bold; }
-        #bomb { position: absolute; bottom: 20%; font-size: 60px; transition: 0.3s; }
-        #input-field { position: fixed; bottom: 0; width: 100%; height: 60px; font-size: 24px; text-align: center; }
+        /* ゲーム画面（上半分に集中） */
+        #game-screen { display: none; width: 100%; max-width: 450px; height: 50%; position: relative; padding-top: 20px; }
+        
+        #timer-container { width: 90%; margin: 0 auto; text-align: center; }
+        #timer-num { font-size: 45px; font-weight: 900; color: #FFEB3B; line-height: 1; margin-bottom: 5px; }
+        #timer-bar-bg { width: 100%; height: 12px; background: rgba(0,0,0,0.2); border-radius: 10px; overflow: hidden; border: 2px solid white; }
+        #timer-bar { width: 100%; height: 100%; background: linear-gradient(90deg, #f44336, #ffeb3b); transition: width 0.1s linear; }
+
+        #word-card { width: 85%; background: white; color: #333; margin: 20px auto; padding: 20px 10px; border-radius: 20px; text-align: center; border: 5px solid #4da6d4; box-shadow: 0 8px 0 rgba(0,0,0,0.1); }
+        #target-word { font-size: 40px; font-weight: bold; display: block; }
+        #echo-text { color: #E91E63; font-size: 24px; font-weight: bold; margin-top: 5px; min-height: 30px; }
+
+        .player { position: absolute; bottom: 10px; width: 70px; height: 70px; border-radius: 15px; border: 4px solid white; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+        #p1-box { left: 20px; background: var(--p1-color); }
+        #p2-box { right: 20px; background: var(--p2-color); }
+        .active-turn { transform: scale(1.15); box-shadow: 0 0 20px white; border-color: #FFEB3B; }
+
+        #bomb { position: absolute; bottom: 15px; font-size: 50px; transition: left 0.4s cubic-bezier(0.4, 0, 0.2, 1); transform: translateX(-50%); z-index: 10; }
+
+        #hidden-input { position: fixed; top: -100px; opacity: 0; }
     </style>
 </head>
 <body>
 
 <div id="home-screen">
     <h1>ピクタイピング</h1>
-    <button class="match-btn" onclick="startMatchmaking()">マッチング開始</button>
+    <button id="main-btn" class="match-btn" onclick="startMatchmaking()">マッチング開始</button>
+    <div id="status-text"></div>
 </div>
 
 <div id="game-screen">
-    <div id="word-card">待機中...</div>
+    <div id="timer-container">
+        <div id="timer-num">10.0</div>
+        <div id="timer-bar-bg"><div id="timer-bar"></div></div>
+    </div>
+
+    <div id="word-card">
+        <div id="target-word">待機中...</div>
+        <div id="echo-text"></div>
+    </div>
+
+    <div id="p1-box" class="player">P1</div>
+    <div id="p2-box" class="player">P2</div>
     <div id="bomb">💣</div>
-    <input type="text" id="input-field" placeholder="ここに入力...">
 </div>
 
+<input type="text" id="hidden-input" autocomplete="off" spellcheck="false">
+
 <script>
-    const firebaseConfig = { /* ここに以前のFirebase設定を入れてください */ };
+    const firebaseConfig = {
+        apiKey: "AIzaSyCgQ8Pz_7PKOpD15wHegpTsHqF1SyocFl4",
+        authDomain: "typing-battle-2cad7.firebaseapp.com",
+        databaseURL: "https://typing-battle-2cad7-default-rtdb.firebaseio.com/",
+        projectId: "typing-battle-2cad7",
+        storageBucket: "typing-battle-2cad7.firebasestorage.app",
+        messagingSenderId: "801345135851",
+        appId: "1:801345135851:web:d43beff787727807834aae"
+    };
+
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
     
     let myRole = null;
-    let currentRoom = null;
+    let currentRoomId = null;
+    let isPlaying = false;
+    const words = ["りんご", "ぶどう", "れもん", "すいか", "いちご", "にんげん", "みかん", "めろん", "ぴーまん", "とまと", "なす"];
+
+    function getNextWord(prev) {
+        let n; do { n = words[Math.floor(Math.random() * words.length)]; } while (n === prev);
+        return n;
+    }
 
     async function startMatchmaking() {
-        document.getElementById('home-screen').style.display = 'none';
-        document.getElementById('game-screen').style.display = 'block';
+        document.getElementById('main-btn').style.display = 'none';
+        document.getElementById('status-text').innerText = "対戦相手を探しています...";
         
-        // 1. 全ルームを取得
         const roomsSnap = await db.ref('rooms').once('value');
-        let matchedRoom = null;
+        let matchedId = null;
 
-        // 2. 空いている部屋(プレイヤー1人)を探す
         roomsSnap.forEach(snap => {
-            const roomData = snap.val();
-            if (Object.keys(roomData.players || {}).length === 1) {
-                matchedRoom = snap.key;
+            const data = snap.val();
+            if (data.status === 'waiting' && Object.keys(data.players || {}).length === 1) {
+                matchedId = snap.key;
             }
         });
 
-        // 3. 部屋があれば参加、なければ作る
-        if (matchedRoom) {
-            currentRoom = matchedRoom;
+        if (matchedId) {
+            currentRoomId = matchedId;
             myRole = 'p2';
-            await db.ref(`rooms/${currentRoom}/players/p2`).set(true);
+            await db.ref(`rooms/${currentRoomId}/players/p2`).set(true);
         } else {
-            currentRoom = 'room_' + Date.now();
+            currentRoomId = 'room_' + Date.now();
             myRole = 'p1';
-            await db.ref(`rooms/${currentRoom}/players/p1`).set(true);
-            await db.ref(`rooms/${currentRoom}/status`).set('waiting');
+            await db.ref(`rooms/${currentRoomId}`).set({
+                status: 'waiting',
+                players: { p1: true },
+                time: 10.0
+            });
         }
 
-        listenGame(currentRoom);
+        db.ref(`rooms/${currentRoomId}/players/${myRole}`).onDisconnect().remove();
+        listenGame();
     }
 
-    function listenGame(roomId) {
-        db.ref(`rooms/${roomId}`).on('value', snap => {
+    function listenGame() {
+        db.ref(`rooms/${currentRoomId}`).on('value', snap => {
             const data = snap.val();
-            if (data.status === 'waiting' && Object.keys(data.players).length === 2) {
-                db.ref(`rooms/${roomId}/status`).set('playing');
-                db.ref(`rooms/${roomId}/word`).set('りんご');
-                db.ref(`rooms/${roomId}/turn`).set('p1');
+            if (!data) return;
+
+            // マッチング成立
+            if (data.status === 'waiting' && data.players.p1 && data.players.p2) {
+                if (myRole === 'p1') {
+                    db.ref(`rooms/${currentRoomId}`).update({
+                        status: 'playing',
+                        turn: 'p1',
+                        word: getNextWord("")
+                    });
+                }
             }
-            // ここに以前のゲーム進行ロジック（表示更新など）を統合
-            if(data.status === 'playing') {
-                document.getElementById('word-card').innerText = data.word;
-                // ...（以下、爆弾の移動や入力判定など）
+
+            if (data.status === 'playing') {
+                document.getElementById('home-screen').style.display = 'none';
+                document.getElementById('game-screen').style.display = 'block';
+                isPlaying = true;
+                render(data);
+            }
+
+            if (data.status === 'gameOver') {
+                alert("ゲーム終了！ 勝者: " + data.winner.toUpperCase());
+                location.reload();
             }
         });
     }
+
+    function render(data) {
+        document.getElementById('target-word').innerText = data.word;
+        document.getElementById('timer-num').innerText = data.time.toFixed(1);
+        document.getElementById('timer-bar').style.width = (data.time * 10) + "%";
+        document.getElementById('bomb').style.left = (data.turn === 'p1') ? "20%" : "80%";
+        document.getElementById('p1-box').classList.toggle('active-turn', data.turn === 'p1');
+        document.getElementById('p2-box').classList.toggle('active-turn', data.turn === 'p2');
+
+        const input = document.getElementById('hidden-input');
+        if (data.turn === myRole) {
+            input.focus();
+        } else {
+            input.value = "";
+            document.getElementById('echo-text').innerText = "";
+        }
+    }
+
+    const input = document.getElementById('hidden-input');
+    const echo = document.getElementById('echo-text');
+
+    input.addEventListener('input', () => {
+        const val = input.value;
+        echo.innerText = val;
+
+        db.ref(`rooms/${currentRoomId}`).get().then(snap => {
+            const d = snap.val();
+            if (isPlaying && d.turn === myRole && val === d.word) {
+                input.value = "";
+                echo.innerText = "";
+                db.ref(`rooms/${currentRoomId}`).update({
+                    turn: (myRole === 'p1' ? 'p2' : 'p1'),
+                    word: getNextWord(d.word),
+                    time: Math.min(d.time + 1.5, 10.0)
+                });
+            }
+        });
+    });
+
+    // タイマー管理（P1が代表して計算）
+    setInterval(() => {
+        if (myRole === 'p1' && isPlaying) {
+            db.ref(`rooms/${currentRoomId}/time`).transaction(t => {
+                const nt = (t || 10) - 0.1;
+                if (nt <= 0) {
+                    db.ref(`rooms/${currentRoomId}`).update({ status: 'gameOver', winner: '相手' });
+                    return 0;
+                }
+                return nt;
+            });
+        }
+    }, 100);
+
+    // 画面タップで強制フォーカス
+    document.addEventListener('touchstart', () => { if(isPlaying) input.focus(); });
+    document.addEventListener('click', () => { if(isPlaying) input.focus(); });
 </script>
 </body>
 </html>

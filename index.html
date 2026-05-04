@@ -12,26 +12,89 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <style>
-        :root { --p1: #4CAF50; --p2: #F44336; --bg: #1e293b; }
-        body { font-family: 'Hiragino Sans', sans-serif; background: var(--bg); margin: 0; color: white; height: 100dvh; display: flex; flex-direction: column; align-items: center; overflow: hidden; }
-        #overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 2000; text-align: center; }
-        .card { background: white; color: #1e293b; padding: 40px 20px; border-radius: 30px; width: 85%; max-width: 320px; }
-        .btn { background: #f43f5e; color: white; border: none; padding: 18px 40px; font-size: 22px; font-weight: 900; border-radius: 50px; cursor: pointer; width: 100%; box-shadow: 0 6px 0 #9f1239; margin-top: 10px; }
-        #ready-go { font-size: 60px; font-weight: 900; color: #fbbf24; display: none; text-align: center; }
-        #game-area { width: 100%; max-width: 450px; height: 55%; position: relative; display: none; padding-top: 20px; }
-        #timer-num { font-size: 50px; font-weight: 900; color: #fbbf24; text-align: center; }
-        #bar-bg { width: 90%; height: 12px; background: #334155; border-radius: 10px; border: 2px solid #fff; margin: 5px auto; overflow: hidden; }
-        #bar-fill { width: 100%; height: 100%; background: linear-gradient(90deg, #ef4444, #fbbf24); transition: width 0.1s linear; }
-        #word-box { width: 85%; background: white; color: #1e293b; margin: 20px auto; padding: 25px 10px; border-radius: 25px; text-align: center; border: 6px solid #334155; position: relative; }
-        #target { font-size: 42px; font-weight: 900; }
-        #echo { color: #db2777; font-size: 26px; font-weight: bold; min-height: 35px; background: #f1f5f9; border-radius: 12px; margin-top: 10px; display: flex; align-items: center; justify-content: center; }
-        .player { position: absolute; bottom: 10px; width: 75px; height: 75px; border-radius: 20px; border: 4px solid #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; transition: all 0.3s ease; }
-        #p1-ui { left: 20px; background: var(--p1); }
-        #p2-ui { right: 20px; background: var(--p2); }
-        .active { transform: scale(1.1); box-shadow: 0 0 20px #fff; border-color: #fbbf24; }
-        #bomb-ui { position: absolute; bottom: 20px; font-size: 60px; transition: left 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); transform: translateX(-50%); }
-        #hidden-input { position: fixed; top: -100px; left: -100px; width: 1px; height: 1px; opacity: 0; }
-        .stats-text { font-size: 16px; font-weight: bold; color: #475569; margin-top: 15px; text-align: center; }
+  :root {
+    --p1: #10b981; /* 鮮やかなエメラルド */
+    --p2: #ef4444; /* 鮮やかなレッド */
+    --bg: #0f172a; /* 深いネイビー */
+    --card-bg: rgba(255, 255, 255, 0.05);
+}
+
+body {
+    font-family: 'Inter', 'Hiragino Sans', sans-serif;
+    background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+    margin: 0;
+    color: white;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow: hidden;
+}
+
+/* カードをガラスっぽく */
+.card {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 40px 20px;
+    border-radius: 32px;
+    width: 85%;
+    max-width: 320px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+/* ボタンをゲーミング風に */
+.btn {
+    background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
+    color: white;
+    border: none;
+    padding: 18px 40px;
+    font-size: 20px;
+    font-weight: 800;
+    border-radius: 16px;
+    cursor: pointer;
+    width: 100%;
+    box-shadow: 0 10px 15px -3px rgba(244, 63, 94, 0.4);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn:active {
+    transform: translateY(4px);
+    box-shadow: 0 4px 6px -1px rgba(244, 63, 94, 0.4);
+}
+
+/* タイピングワードの箱 */
+#word-box {
+    width: 85%;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(8px);
+    color: white;
+    margin: 20px auto;
+    padding: 30px 10px;
+    border-radius: 24px;
+    text-align: center;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+#target {
+    font-size: 48px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    text-shadow: 0 0 20px rgba(255,255,255,0.3);
+}
+
+/* 爆弾のアニメーション */
+#bomb-ui {
+    filter: drop-shadow(0 0 15px rgba(251, 191, 36, 0.6));
+    animation: bounce 0.5s infinite alternate;
+}
+
+@keyframes bounce {
+    from { transform: translateX(-50%) translateY(0); }
+    to { transform: translateX(-50%) translateY(-10px); }
+}
+
     </style>
 </head>
 <body>
